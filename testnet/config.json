@@ -1,0 +1,14 @@
+{
+  "endpoint": "https://testnet.toncenter.com/api/v2/jsonRPC",
+  "explorer": "https://testnet.tonviewer.com",
+  "wallet": {
+    "version": "v4R2",
+    "mnemonicPath": "./wallet.mnemonic",
+    "publicKey": "",
+    "workchain": 0
+  },
+  "deployment": {
+    "initialBalance": "5",
+    "gasReserve": "0.2"
+  }
+}
