@@ -1,0 +1,10 @@
+{
+  "projects": [
+    {
+      "name": "PaymentProcessor",
+      "path": "contracts/PaymentProcessor.tact",
+      "output": "build",
+      "bindings": "js"
+    }
+  ]
+}

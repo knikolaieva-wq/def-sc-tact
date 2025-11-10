@@ -1,9 +1,24 @@
 {
-  "name": "def-sc-tact",
+  "name": "ton-payment-processor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "build:contract": "tact -c tact.config.json",
+    "deploy:testnet": "node scripts/deploy.mjs --network testnet",
+    "dev": "node scripts/dev-server.mjs"
+  },
+  "devDependencies": {
+    "@tact-lang/compiler": "^1.5.0",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.15.7",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@ton/core": "^0.56.3",
+    "@ton/ton": "^14.0.0",
+    "ton-core": "^0.53.0",
+    "ton-crypto": "^3.2.0",
+    "@orbs-network/ton-access": "^2.2.3"
   }
 }

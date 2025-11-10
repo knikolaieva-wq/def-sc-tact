@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payment (TON) — Preview & Pay</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <!-- TON Core via ESM (browser) for client-side payload encoding -->
+    <script type="module">
+      import { beginCell, Address } from 'https://esm.sh/@ton/core@0.56.3';
+      window.TonCore = { beginCell, Address };
+    </script>
+    <style>
+      body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+      pre { white-space: pre-wrap; word-break: break-word; }
+    </style>
+  </head>
+  <body class="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
+    <div class="max-w-5xl mx-auto p-6 space-y-8">
+      <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 class="text-3xl font-bold">Payment (TON)</h1>
+          <p id="netInfo" class="text-gray-600">Сеть: TON Testnet</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <select id="tonNetwork" class="px-3 py-2 rounded-xl border">
+            <option value="testnet" selected>TON Testnet</option>
+            <option value="mainnet">TON Mainnet</option>
+          </select>
+          <button id="connectBtn" class="px-4 py-2 rounded-xl bg-black text-white">Подключить Tonkeeper</button>
+          <button id="connectDirectBtn" class="px-4 py-2 rounded-xl border">Открыть Tonkeeper</button>
+          <div id="ton-connect"></div>
+          <div id="wallet-info" class="text-sm text-gray-600"></div>
+        </div>
+        <div id="manifest-status" class="text-xs text-red-600"></div>
+      </header>
+
+      <main class="rounded-3xl border bg-white shadow-sm p-6 md:p-8 space-y-6">
+        <div class="rounded-2xl border border-dashed bg-gray-50 p-4 text-sm text-gray-600">
+          Интерфейс считает комиссии и отправляет транзакцию через TonConnect. Тело сообщения (payload) формируется на сервере.
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
+            <input id="contractAddress" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="EQC…" />
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Адрес продавца (seller)</span>
+            <input id="seller" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="EQC…" />
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
+            <input id="partner" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="(опц.) EQC…" />
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Сумма к оплате (TON)</span>
+            <input id="amountTon" type="number" min="0" step="0.000000001" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="1.5" />
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Кто платит комиссию</span>
+            <select id="buyerPays" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10">
+              <option value="true">Покупатель</option>
+              <option value="false">Продавец</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Комиссия платформы (bps)</span>
+            <input id="bps" type="number" min="0" max="10000" value="25" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" />
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Дедлайн (unix, сек)</span>
+            <input id="deadline" type="number" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="now + 3600" />
+          </label>
+
+          <textarea id="payload" class="hidden"></textarea>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm text-gray-600">Сначала рассчитайте предпросмотр, затем отправляйте.</div>
+          <div class="flex gap-3">
+            <button id="previewBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Предпросмотр</button>
+            <button id="sendBtn" class="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60 disabled:cursor-not-allowed" disabled>Оплатить (TonConnect)</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6">
+          <div class="p-4 rounded-2xl border bg-gray-50">
+            <div class="font-semibold mb-2">Предпросмотр</div>
+            <pre id="preview" class="text-sm"></pre>
+          </div>
+          <div class="p-4 rounded-2xl border bg-gray-50">
+            <div class="font-semibold mb-2">Статус / Логи</div>
+            <pre id="status" class="text-sm"></pre>
+          </div>
+        </div>
+      </main>
+
+      <footer class="text-xs text-gray-500">
+        <p>• Если сервер отвечает 405 — проверьте путь и метод (должен быть POST) и CORS на сервере.</p>
+      </footer>
+    </div>
+
+    <script>
+      // ---------- CONFIG ----------
+      // Укажите тут URL вашего бекенда.
+      // API бэкенда. По умолчанию — тот же origin, что и страница
+      // (локальный dev-сервер уже реализует /api/transfer).
+      const API_URL = '/api/transfer';
+      // ----------------------------
+
+      // Helpers
+      const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
+      const fromNano = (nano) => Number(nano) / 1e9;
+
+      const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
+
+      const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+        manifestUrl: manifestUrlResolved,
+        buttonRootId: 'ton-connect',
+      });
+
+      // ---------- Client-side payload builder (uses @ton/core in browser) ----------
+      async function buildPayloadLocally(req, deadline) {
+        const core = window.TonCore || {};
+        const beginCell = core.beginCell;
+        const Address = core.Address;
+        if (!beginCell || !Address) {
+          throw new Error('ton-core not available in browser');
+        }
+        const header = 1120014202;
+        const b0 = beginCell();
+        b0.storeUint(header, 32);
+        // PaymentRequest
+        b0.storeAddress(Address.parse(req.buyer));
+        b0.storeAddress(Address.parse(req.seller));
+        b0.storeInt(BigInt(req.amount), 257);
+        b0.storeBit(!!req.buyerPaysCommission);
+        const bOpt = beginCell();
+        // Maybe<Address>: pass null to store MaybeNone, or store actual address
+        bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
+        b0.storeRef(bOpt.endCell());
+        // deadline stored in a separate ref as Int257
+        const bDl = beginCell();
+        bDl.storeInt(BigInt(deadline), 257);
+        b0.storeRef(bDl.endCell());
+        const cell = b0.endCell();
+        return cell.toBoc({ idx: false }).toString('base64');
+      }
+
+      // Manifest check (необязательно, но полезно)
+      (async () => {
+        const statusEl = document.getElementById('manifest-status');
+        try {
+          const r = await fetch(manifestUrlResolved, { cache: 'no-store' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const j = await r.json();
+          const origin = new URL(j.url, window.location.href).origin;
+          if (origin !== window.location.origin) {
+            statusEl.textContent = `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`;
+          } else {
+            statusEl.textContent = '';
+          }
+        } catch (e) {
+          statusEl.textContent = `Манифест недоступен: ${e.message}`;
+        }
+      })();
+
+      // Elements
+      const walletInfo = document.getElementById('wallet-info');
+      let currentWallet = null;
+      tonConnectUI.onStatusChange((wallet) => {
+        currentWallet = wallet;
+        const sendBtn = document.getElementById('sendBtn');
+        if (wallet && wallet.account && wallet.account.address) {
+          walletInfo.textContent = 'Подключено: ' + wallet.account.address;
+          sendBtn.disabled = false;
+        } else {
+          walletInfo.textContent = 'Кошелёк не подключен';
+          sendBtn.disabled = true;
+        }
+      });
+
+      document.getElementById('connectBtn').addEventListener('click', async () => {
+        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+        try {
+          await tonConnectUI.openModal();
+          setTimeout(() => {
+            const modal = document.querySelector('tc-modal, .tc-modal');
+            const anyVisible = modal && (modal.offsetParent !== null);
+            if (!anyVisible) {
+              const manifestUrl = encodeURIComponent(manifestUrlResolved);
+              const testnetParam = isTestnet ? '&testnet=true' : '';
+              window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
+            }
+          }, 400);
+        } catch (e) {
+          alert(e?.message || 'Ошибка подключения');
+        }
+      });
+
+      document.getElementById('connectDirectBtn').addEventListener('click', () => {
+        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+        const manifestUrl = encodeURIComponent(manifestUrlResolved);
+        const testnetParam = isTestnet ? '&testnet=true' : '';
+        window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
+      });
+
+      // UI controls
+      document.getElementById('tonNetwork').addEventListener('change', (e) => {
+        document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+      });
+
+      const contractAddressEl = document.getElementById('contractAddress');
+      const sellerEl = document.getElementById('seller');
+      const partnerEl = document.getElementById('partner');
+      const amountTonEl = document.getElementById('amountTon');
+      const buyerPaysEl = document.getElementById('buyerPays');
+      const bpsEl = document.getElementById('bps');
+      const deadlineEl = document.getElementById('deadline');
+      const payloadEl = document.getElementById('payload');
+      const previewEl = document.getElementById('preview');
+      const previewBtn = document.getElementById('previewBtn');
+      const sendBtn = document.getElementById('sendBtn');
+      const statusEl = document.getElementById('status');
+
+      function calcPreview() {
+        const amountTon = amountTonEl.value || '0';
+        const amount = toNano(amountTon);
+        const buyerPays = buyerPaysEl.value === 'true';
+        const bps = Number(bpsEl.value || '0');
+
+        const commission = (amount * BigInt(bps)) / 10000n;
+        const totalPay = buyerPays ? (amount + commission) : amount;
+        return { amount, commission, totalPay, buyerPays };
+      }
+
+      previewBtn.addEventListener('click', () => {
+        try {
+          const { amount, commission, totalPay, buyerPays } = calcPreview();
+          previewEl.textContent =
+`==== PAYMENT PREVIEW (TON) ====
+Сумма:           ${fromNano(amount)} TON
+Комиссия:        ${fromNano(commission)} TON (${buyerPays ? 'покупатель' : 'продавец'})
+Итого к оплате:  ${fromNano(totalPay)} TON
+===============================`;
+        } catch (e) {
+          previewEl.textContent = 'Ошибка расчёта: ' + e.message;
+        }
+      });
+
+      sendBtn.addEventListener('click', async () => {
+        statusEl.textContent = '';
+        const to = contractAddressEl.value.trim();
+        if (!to) { alert('Укажите адрес контракта'); return; }
+
+        if (!currentWallet || !currentWallet.account || !currentWallet.account.address) {
+          alert('Кошелёк не подключён или адрес не доступен');
+          return;
+        }
+
+        const buyerAddrFromWallet = currentWallet.account.address;
+        const { totalPay, amount, buyerPays } = calcPreview();
+
+        const reqBody = {
+          req: {
+            buyer: buyerAddrFromWallet,
+            seller: sellerEl.value.trim(),
+            amount: amount.toString(),
+            buyerPaysCommission: buyerPays,
+            optionalCommissionWallet: (partnerEl.value || '').trim() || null
+          },
+          deadline: Math.floor(Date.now() / 1000) + 3600
+        };
+
+        console.log('Request body for', API_URL, reqBody);
+        let payloadBase64 = '';
+        try {
+          // Всегда строим payload локально через TonCore
+          payloadBase64 = await buildPayloadLocally(reqBody.req, reqBody.deadline);
+          payloadEl.value = payloadBase64;
+        } catch (e) {
+          statusEl.textContent = 'Не удалось сформировать payload локально: ' + (e?.message || e);
+          console.error('payload error:', e);
+          return;
+        }
+
+        const tx = {
+          validUntil: Math.floor(Date.now() / 1000) + 300,
+          messages: [
+            {
+              address: to,
+              amount: totalPay.toString(),
+              payload: payloadBase64 || undefined
+            }
+          ]
+        };
+
+        try {
+          statusEl.textContent = 'Отправляем транзакцию…';
+          const res = await tonConnectUI.sendTransaction(tx);
+          statusEl.textContent = 'Отправлено. Проверьте кошелёк.';
+          console.log('TonConnect result:', res);
+        } catch (e) {
+          statusEl.textContent = 'Отправка отклонена или ошибка: ' + (e?.message || e);
+        }
+      });
+
+      // дополнительная подсказка: если сервер на другом origin, поменяйте API_URL и убедитесь, что сервер отвечает CORS заголовками.
+    </script>
+  </body>
+</html>
