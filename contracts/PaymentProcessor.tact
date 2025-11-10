@@ -12,6 +12,10 @@
 // - incrementSuccessfulTx(address)
 // Note: in TON, cross-contract reads are get-method calls, writes are internal messages.
 
+const OP_TRANSFER: Int = 1120014202; // уже используете в фронтенде
+const OP_SET_BPS: Int = 3762819951; // новый (фиксируем)
+const OP_WITHDRAW_ALL: Int = 2391568291; // новый (фиксируем)
+const OP_SET_OWNER: Int = 1529432117; // опционально: смена овнера
 trait IDefNFT {
     abstract get fun getPlatformShareBpsForWallet(wallet: Address): Int;
     // incrementSuccessfulTx вызывается как входящее сообщение у внешнего контракта через send(body)
@@ -30,9 +34,24 @@ struct Preview {
     totalPay: Int;
 }
 
+struct ConfigResponse {
+    owner: Address;
+    mainCommissionWallet: Address;
+    nftCollection: Address;
+    platformCommissionBps: Int;
+}
+
+struct OpsResponse {
+    opTransfer: Int;
+    opSetBps: Int;
+    opWithdrawAll: Int;
+    opSetOwner: Int;
+}
+
 message Transfer { req: PaymentRequest; deadline: Int; }
 message SetPlatformCommissionBps { newBps: Int; }
 message WithdrawAll { to: Address; }
+message SetOwner { newOwner: Address; }
 
 contract PaymentProcessor {
     owner: Address;
@@ -51,7 +70,32 @@ contract PaymentProcessor {
         // nonces already initialized by default
     }
 
+    // 3) Добавим get-методы для фронта
+    get fun getConfig(): ConfigResponse {
+        return ConfigResponse{
+            owner: self.owner,
+            mainCommissionWallet: self.mainCommissionWallet,
+            nftCollection: self.nftCollection,
+            platformCommissionBps: self.platformCommissionBps
+        };
+    }
+
+
+    get fun getOps(): OpsResponse {
+        return OpsResponse{
+            opTransfer: OP_TRANSFER,
+            opSetBps: OP_SET_BPS,
+            opWithdrawAll: OP_WITHDRAW_ALL,
+            opSetOwner: OP_SET_OWNER
+        };
+    }
+
     // ============ Admin ============
+    receive(m: SetOwner) {
+        require(sender() == self.owner, "only owner");
+        self.owner = m.newOwner;
+    }
+
     receive(m: SetPlatformCommissionBps) {
         require(sender() == self.owner, "only owner");
         require(m.newBps >= 0 && m.newBps <= 10000, "bps out of range");
@@ -63,7 +107,7 @@ contract PaymentProcessor {
         let to = w.to;
         let bal = myBalance();
         require(bal > 0, "empty");
-        send(SendParameters{ to: to, value: bal });
+        send(SendParameters{ to: to, value: 0, mode: 128 });
     }
 
     // ============ Payment entry ============

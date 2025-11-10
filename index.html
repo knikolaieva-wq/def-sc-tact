@@ -3,104 +3,164 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Payment (TON) — Preview & Pay</title>
+    <title>Payment (TON) — Pay + Admin + Views</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-    <!-- TON Core via ESM (browser) for client-side payload encoding -->
+    
+    <!-- TON Core & TON Libraries via ESM -->
     <script type="module">
-      import { beginCell, Address } from 'https://esm.sh/@ton/core@0.56.3';
-      window.TonCore = { beginCell, Address };
+      import { beginCell, Address, TupleBuilder } from 'https://esm.sh/@ton/core@0.56.3';
+      import { TonClient, Address as TonAddress } from 'https://esm.sh/@ton/ton@14.0.0';
+      import { getHttpEndpoint } from 'https://esm.sh/@orbs-network/ton-access@2.3.3';
+      
+      window.TonCore = { beginCell, Address, TupleBuilder };
+      window.TonRpc = { TonClient, TonAddress, getHttpEndpoint };
+      window.tonLibsReady = true;
     </script>
+    
     <style>
       body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
       pre { white-space: pre-wrap; word-break: break-word; }
+      /* Скрываем встроенную кнопку TonConnect */
+      #ton-connect { display: none !important; }
     </style>
   </head>
   <body class="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
-    <div class="max-w-5xl mx-auto p-6 space-y-8">
+    <div class="max-w-6xl mx-auto p-6 space-y-8">
       <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 class="text-3xl font-bold">Payment (TON)</h1>
           <p id="netInfo" class="text-gray-600">Сеть: TON Testnet</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <select id="tonNetwork" class="px-3 py-2 rounded-xl border">
+          <select id="tonNetwork" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
             <option value="testnet" selected>TON Testnet</option>
             <option value="mainnet">TON Mainnet</option>
           </select>
-          <button id="connectBtn" class="px-4 py-2 rounded-xl bg-black text-white">Подключить Tonkeeper</button>
-          <button id="connectDirectBtn" class="px-4 py-2 rounded-xl border">Открыть Tonkeeper</button>
+          <button id="connectBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Подключить Tonkeeper</button>
+          <button id="connectDirectBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Открыть Tonkeeper</button>
           <div id="ton-connect"></div>
-          <div id="wallet-info" class="text-sm text-gray-600"></div>
+          <div id="wallet-info" class="text-sm text-gray-700"></div>
         </div>
         <div id="manifest-status" class="text-xs text-red-600"></div>
       </header>
 
-      <main class="rounded-3xl border bg-white shadow-sm p-6 md:p-8 space-y-6">
-        <div class="rounded-2xl border border-dashed bg-gray-50 p-4 text-sm text-gray-600">
-          Интерфейс считает комиссии и отправляет транзакцию через TonConnect. Тело сообщения (payload) формируется на сервере.
+      <main class="space-y-8">
+        <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-700">
+          Интерфейс считает комиссии, умеет читать get-методы и отправлять админ-вызовы через TonConnect. Payload'ы кодируются локально.
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
-            <input id="contractAddress" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Адрес продавца (seller)</span>
-            <input id="seller" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
-            <input id="partner" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="(опц.) EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Сумма к оплате (TON)</span>
-            <input id="amountTon" type="number" min="0" step="0.000000001" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="1.5" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Кто платит комиссию</span>
-            <select id="buyerPays" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10">
-              <option value="true">Покупатель</option>
-              <option value="false">Продавец</option>
-            </select>
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Комиссия платформы (bps)</span>
-            <input id="bps" type="number" min="0" max="10000" value="25" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Дедлайн (unix, сек)</span>
-            <input id="deadline" type="number" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="now + 3600" />
-          </label>
-
-          <textarea id="payload" class="hidden"></textarea>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="text-sm text-gray-600">Сначала рассчитайте предпросмотр, затем отправляйте.</div>
-          <div class="flex gap-3">
-            <button id="previewBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Предпросмотр</button>
-            <button id="sendBtn" class="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60 disabled:cursor-not-allowed" disabled>Оплатить (TonConnect)</button>
+        <!-- === ПЛАТЁЖ === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Платёж</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">User flow</span>
           </div>
-        </div>
 
-        <div class="grid grid-cols-1 gap-6">
-          <div class="p-4 rounded-2xl border bg-gray-50">
-            <div class="font-semibold mb-2">Предпросмотр</div>
-            <pre id="preview" class="text-sm"></pre>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
+              <input id="contractAddress" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес продавца (seller)</span>
+              <input id="seller" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
+              <input id="partner" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="(опц.) EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Сумма к оплате (TON)</span>
+              <input id="amountTon" type="number" min="0" step="0.000000001" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="1.5" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Кто платит комиссию</span>
+              <select id="buyerPays" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
+                <option value="true">Покупатель</option>
+                <option value="false">Продавец</option>
+              </select>
+            </label>
           </div>
-          <div class="p-4 rounded-2xl border bg-gray-50">
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="previewOnchainBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр платежа</button>
+            <button id="sendBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Оплатить (TonConnect)</button>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Предпросмотр</div>
+              <pre id="preview" class="text-sm"></pre>
+            </div>
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Nonce</div>
+              <div class="flex items-center gap-3 mb-2">
+                <input id="nonceAddr" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1" placeholder="EQC… (по умолчанию — адрес кошелька)" />
+                <button id="nonceBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать nonceOf</button>
+              </div>
+              <pre id="nonceOut" class="text-sm"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- === АДМИНКА === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Админка</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="readConfigBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать конфиг</button>
+              <button id="readOpsBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Показать op-коды</button>
+              <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Текущий bps</span>
+              <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800" disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Овнер</span>
+              <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800" disabled />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый bps</span>
+              <input id="newBps" type="number" min="0" max="10000" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="например, 35" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetBpsBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Установить bps</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Вывести все средства на адрес</span>
+              <input id="withdrawTo" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendWithdrawAllBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Вывести</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый овнер</span>
+              <input id="newOwner" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetOwnerBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Сменить овнера</button>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
             <div class="font-semibold mb-2">Статус / Логи</div>
             <pre id="status" class="text-sm"></pre>
           </div>
-        </div>
+        </section>
       </main>
 
       <footer class="text-xs text-gray-500">
@@ -110,210 +170,589 @@
 
     <script>
       // ---------- CONFIG ----------
-      // Укажите тут URL вашего бекенда.
-      // API бэкенда. По умолчанию — тот же origin, что и страница
-      // (локальный dev-сервер уже реализует /api/transfer).
       const API_URL = '/api/transfer';
-      // ----------------------------
-
-      // Helpers
+      const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
+      const RPC_MAINNET = 'https://toncenter.com/api/v2/jsonRPC';
+      
       const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
       const fromNano = (nano) => Number(nano) / 1e9;
-
       const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
 
-      const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-        manifestUrl: manifestUrlResolved,
-        buttonRootId: 'ton-connect',
+      // Убираем buttonRootId, чтобы не было конфликта
+      const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ 
+        manifestUrl: manifestUrlResolved
       });
 
-      // ---------- Client-side payload builder (uses @ton/core in browser) ----------
-      async function buildPayloadLocally(req, deadline) {
-        const core = window.TonCore || {};
-        const beginCell = core.beginCell;
-        const Address = core.Address;
-        if (!beginCell || !Address) {
-          throw new Error('ton-core not available in browser');
-        }
-        const header = 1120014202;
-        const b0 = beginCell();
-        b0.storeUint(header, 32);
-        // PaymentRequest
-        b0.storeAddress(Address.parse(req.buyer));
-        b0.storeAddress(Address.parse(req.seller));
-        b0.storeInt(BigInt(req.amount), 257);
-        b0.storeBit(!!req.buyerPaysCommission);
-        const bOpt = beginCell();
-        // Maybe<Address>: pass null to store MaybeNone, or store actual address
-        bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
-        b0.storeRef(bOpt.endCell());
-        // deadline stored in a separate ref as Int257
-        const bDl = beginCell();
-        bDl.storeInt(BigInt(deadline), 257);
-        b0.storeRef(bDl.endCell());
-        const cell = b0.endCell();
-        return cell.toBoc({ idx: false }).toString('base64');
+      let OPS = { transfer: 1120014202, setBps: 0, withdrawAll: 0, setOwner: 0 };
+
+      // ---------- LOCALSTORAGE HELPERS ----------
+      const STORAGE_KEY = 'ton_payment_form_data';
+      
+      function saveFormData() {
+        const data = {
+          contractAddress: document.getElementById('contractAddress').value,
+          seller: document.getElementById('seller').value,
+          partner: document.getElementById('partner').value,
+          amountTon: document.getElementById('amountTon').value,
+          buyerPays: document.getElementById('buyerPays').value,
+          newBps: document.getElementById('newBps').value,
+          withdrawTo: document.getElementById('withdrawTo').value,
+          newOwner: document.getElementById('newOwner').value,
+          tonNetwork: document.getElementById('tonNetwork').value
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       }
 
-      // Manifest check (необязательно, но полезно)
-      (async () => {
-        const statusEl = document.getElementById('manifest-status');
+      function loadFormData() {
         try {
-          const r = await fetch(manifestUrlResolved, { cache: 'no-store' });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const j = await r.json();
-          const origin = new URL(j.url, window.location.href).origin;
-          if (origin !== window.location.origin) {
-            statusEl.textContent = `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`;
-          } else {
-            statusEl.textContent = '';
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (!saved) return;
+          
+          const data = JSON.parse(saved);
+          
+          if (data.contractAddress) document.getElementById('contractAddress').value = data.contractAddress;
+          if (data.seller) document.getElementById('seller').value = data.seller;
+          if (data.partner) document.getElementById('partner').value = data.partner;
+          if (data.amountTon) document.getElementById('amountTon').value = data.amountTon;
+          if (data.buyerPays) document.getElementById('buyerPays').value = data.buyerPays;
+          if (data.newBps) document.getElementById('newBps').value = data.newBps;
+          if (data.withdrawTo) document.getElementById('withdrawTo').value = data.withdrawTo;
+          if (data.newOwner) document.getElementById('newOwner').value = data.newOwner;
+          if (data.tonNetwork) {
+            document.getElementById('tonNetwork').value = data.tonNetwork;
+            document.getElementById('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
           }
+          
+          console.log('Form data loaded from localStorage');
         } catch (e) {
-          statusEl.textContent = `Манифест недоступен: ${e.message}`;
+          console.error('Failed to load form data:', e);
         }
-      })();
-
-      // Elements
-      const walletInfo = document.getElementById('wallet-info');
-      let currentWallet = null;
-      tonConnectUI.onStatusChange((wallet) => {
-        currentWallet = wallet;
-        const sendBtn = document.getElementById('sendBtn');
-        if (wallet && wallet.account && wallet.account.address) {
-          walletInfo.textContent = 'Подключено: ' + wallet.account.address;
-          sendBtn.disabled = false;
-        } else {
-          walletInfo.textContent = 'Кошелёк не подключен';
-          sendBtn.disabled = true;
-        }
-      });
-
-      document.getElementById('connectBtn').addEventListener('click', async () => {
-        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-        try {
-          await tonConnectUI.openModal();
-          setTimeout(() => {
-            const modal = document.querySelector('tc-modal, .tc-modal');
-            const anyVisible = modal && (modal.offsetParent !== null);
-            if (!anyVisible) {
-              const manifestUrl = encodeURIComponent(manifestUrlResolved);
-              const testnetParam = isTestnet ? '&testnet=true' : '';
-              window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
-            }
-          }, 400);
-        } catch (e) {
-          alert(e?.message || 'Ошибка подключения');
-        }
-      });
-
-      document.getElementById('connectDirectBtn').addEventListener('click', () => {
-        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-        const manifestUrl = encodeURIComponent(manifestUrlResolved);
-        const testnetParam = isTestnet ? '&testnet=true' : '';
-        window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
-      });
-
-      // UI controls
-      document.getElementById('tonNetwork').addEventListener('change', (e) => {
-        document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
-      });
-
-      const contractAddressEl = document.getElementById('contractAddress');
-      const sellerEl = document.getElementById('seller');
-      const partnerEl = document.getElementById('partner');
-      const amountTonEl = document.getElementById('amountTon');
-      const buyerPaysEl = document.getElementById('buyerPays');
-      const bpsEl = document.getElementById('bps');
-      const deadlineEl = document.getElementById('deadline');
-      const payloadEl = document.getElementById('payload');
-      const previewEl = document.getElementById('preview');
-      const previewBtn = document.getElementById('previewBtn');
-      const sendBtn = document.getElementById('sendBtn');
-      const statusEl = document.getElementById('status');
-
-      function calcPreview() {
-        const amountTon = amountTonEl.value || '0';
-        const amount = toNano(amountTon);
-        const buyerPays = buyerPaysEl.value === 'true';
-        const bps = Number(bpsEl.value || '0');
-
-        const commission = (amount * BigInt(bps)) / 10000n;
-        const totalPay = buyerPays ? (amount + commission) : amount;
-        return { amount, commission, totalPay, buyerPays };
       }
 
-      previewBtn.addEventListener('click', () => {
-        try {
-          const { amount, commission, totalPay, buyerPays } = calcPreview();
-          previewEl.textContent =
-`==== PAYMENT PREVIEW (TON) ====
+      function attachAutoSave() {
+        const inputs = [
+          'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays', 
+          'newBps', 'withdrawTo', 'newOwner', 'tonNetwork'
+        ];
+        
+        inputs.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.addEventListener('input', saveFormData);
+            el.addEventListener('change', saveFormData);
+          }
+        });
+      }
+
+      function logStatus(msg) {
+        const el = document.getElementById('status');
+        if (!el) return;
+        el.textContent += (el.textContent ? '\n' : '') + msg;
+        console.log(msg);
+      }
+
+      // Wait for libs to load
+      function waitForLibs() {
+        return new Promise((resolve) => {
+          const check = () => {
+            if (window.tonLibsReady && window.TonCore && window.TonRpc) {
+              resolve();
+            } else {
+              setTimeout(check, 100);
+            }
+          };
+          check();
+        });
+      }
+
+      // Load saved form data on page load
+      loadFormData();
+
+      // Initialize app after libs loaded
+      waitForLibs().then(() => {
+        const { beginCell, Address } = window.TonCore;
+        const { TonClient, TonAddress, getHttpEndpoint } = window.TonRpc;
+
+        logStatus('Библиотеки загружены');
+
+        // Attach auto-save to all inputs
+        attachAutoSave();
+
+        // RPC client
+        async function rpcClientForCurrentNet() {
+          const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+          
+          if (isTestnet) return new TonClient({ endpoint: RPC_TESTNET });
+          
+          const endpoint = await getHttpEndpoint({ network: 'mainnet' });
+          return new TonClient({ endpoint });
+        }
+
+        // ---------- PAYLOAD BUILDERS ----------
+        async function buildTransferPayload(req, deadline) {
+          const b0 = beginCell();
+          b0.storeUint(OPS.transfer, 32);
+          b0.storeAddress(Address.parse(req.buyer));
+          b0.storeAddress(Address.parse(req.seller));
+          b0.storeInt(BigInt(req.amount), 257);
+          b0.storeBit(!!req.buyerPaysCommission);
+          
+          const bOpt = beginCell();
+          bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
+          b0.storeRef(bOpt.endCell());
+          
+          const bDl = beginCell();
+          bDl.storeInt(BigInt(deadline), 257);
+          b0.storeRef(bDl.endCell());
+          
+          return b0.endCell().toBoc({ idx: false }).toString('base64');
+        }
+
+        async function buildSetBpsPayload(newBps) {
+          const b = beginCell();
+          b.storeUint(OPS.setBps, 32);
+          b.storeInt(BigInt(newBps), 257);
+          return b.endCell().toBoc({ idx: false }).toString('base64');
+        }
+
+        async function buildWithdrawAllPayload(toAddr) {
+          const b = beginCell();
+          b.storeUint(OPS.withdrawAll, 32);
+          b.storeAddress(Address.parse(toAddr));
+          return b.endCell().toBoc({ idx: false }).toString('base64');
+        }
+
+        async function buildSetOwnerPayload(newOwner) {
+          const b = beginCell();
+          b.storeUint(OPS.setOwner, 32);
+          b.storeAddress(Address.parse(newOwner));
+          return b.endCell().toBoc({ idx: false }).toString('base64');
+        }
+
+        // ---------- Wallet wiring ----------
+        const walletInfo = document.getElementById('wallet-info');
+        let currentWallet = null;
+        
+        // Функция для обновления UI состояния кошелька
+        function updateWalletUI(wallet) {
+          console.log('Updating wallet UI:', wallet);
+          console.log('Wallet structure:', JSON.stringify(wallet, null, 2));
+          
+          currentWallet = wallet;
+          
+          const enable = !!(wallet && wallet.account && wallet.account.address);
+          
+          console.log('Enable state:', enable);
+          console.log('Wallet account:', wallet?.account);
+          console.log('Wallet address:', wallet?.account?.address);
+          
+          if (enable) {
+            const addr = wallet.account.address;
+            // Проверяем формат адреса и делаем корректное сокращение
+            let shortAddr;
+            if (addr.includes(':')) {
+              // Формат 0:4b1870944ba9c99341cd6b66537328aa222a32875c4ed92060f7a324e43013e0
+              const parts = addr.split(':');
+              const hash = parts[1];
+              shortAddr = `${parts[0]}:${hash.slice(0, 4)}...${hash.slice(-4)}`;
+            } else {
+              // Формат EQC...
+              shortAddr = addr.slice(0, 6) + '...' + addr.slice(-4);
+            }
+            
+            walletInfo.textContent = `Подключено: ${shortAddr}`;
+            walletInfo.classList.add('text-green-600');
+            walletInfo.classList.remove('text-gray-700');
+          } else {
+            walletInfo.textContent = 'Кошелёк не подключен';
+            walletInfo.classList.remove('text-green-600');
+            walletInfo.classList.add('text-gray-700');
+          }
+          
+          // Управление кнопками
+          const buttons = ['sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn'];
+          buttons.forEach((btnId) => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+              btn.disabled = !enable;
+              console.log(`Button ${btnId} disabled: ${!enable}`);
+            } else {
+              console.warn(`Button ${btnId} not found`);
+            }
+          });
+          
+          // Автозаполнение nonce address - используем friendly формат
+          const nonceAddr = document.getElementById('nonceAddr');
+          if (enable && nonceAddr) {
+            // Преобразуем hex формат в friendly, если нужно
+            try {
+              const addr = wallet.account.address;
+              let friendlyAddr;
+              
+              if (addr.includes(':')) {
+                // Преобразуем 0:hex в EQ формат
+                friendlyAddr = Address.parse(addr).toString();
+              } else {
+                friendlyAddr = addr;
+              }
+              
+              // Заполняем только если пусто
+              if (!nonceAddr.value) {
+                nonceAddr.value = friendlyAddr;
+              }
+            } catch (e) {
+              console.error('Failed to parse wallet address:', e);
+            }
+          }
+        }
+        
+        // Обработка изменений статуса подключения
+        tonConnectUI.onStatusChange((wallet) => {
+          console.log('TonConnect status changed:', wallet);
+          updateWalletUI(wallet);
+        });
+
+        // Проверяем текущее состояние кошелька при загрузке и обновляем UI
+        setTimeout(() => {
+          const wallet = tonConnectUI.wallet;
+          console.log('Checking wallet on init:', wallet);
+          if (wallet) {
+            updateWalletUI(wallet);
+          } else {
+            console.log('No wallet connected on init');
+          }
+        }, 100);
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+          try {
+            console.log('Opening TonConnect modal...');
+            await tonConnectUI.openModal();
+          } catch (e) {
+            console.error('Connect error:', e);
+            alert(e?.message || 'Ошибка подключения');
+          }
+        });
+
+        document.getElementById('connectDirectBtn').addEventListener('click', () => {
+          const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+          const manifestUrl = encodeURIComponent(manifestUrlResolved);
+          const testnetParam = isTestnet ? '&testnet=true' : '';
+          console.log('Opening Tonkeeper directly with testnet:', isTestnet);
+          window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
+        });
+
+        document.getElementById('tonNetwork').addEventListener('change', (e) => {
+          document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+          saveFormData(); // Save network selection
+        });
+
+        // ---------- UI elems ----------
+        const contractAddressEl = document.getElementById('contractAddress');
+        const sellerEl = document.getElementById('seller');
+        const partnerEl = document.getElementById('partner');
+        const amountTonEl = document.getElementById('amountTon');
+        const buyerPaysEl = document.getElementById('buyerPays');
+
+        const previewEl = document.getElementById('preview');
+        const previewOnchainBtn = document.getElementById('previewOnchainBtn');
+        const sendBtn = document.getElementById('sendBtn');
+
+        const currentBpsEl = document.getElementById('currentBps');
+        const currentOwnerEl = document.getElementById('currentOwner');
+        const newBpsEl = document.getElementById('newBps');
+        const withdrawToEl = document.getElementById('withdrawTo');
+        const newOwnerEl = document.getElementById('newOwner');
+
+        const nonceAddrEl = document.getElementById('nonceAddr');
+        const nonceBtn = document.getElementById('nonceBtn');
+        const nonceOut = document.getElementById('nonceOut');
+
+        // ---------- PREVIEW (on-chain only) ----------
+        previewOnchainBtn.addEventListener('click', async () => {
+          try {
+            const addr = (contractAddressEl.value||'').trim();
+            if (!addr) throw new Error('Укажите адрес контракта');
+            
+            const client = await rpcClientForCurrentNet();
+            const amount = toNano(amountTonEl.value || '0');
+            const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
+            
+            const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
+              { type: 'int', value: amount },
+              { type: 'int', value: buyerPays }
+            ]);
+            
+            const commission = res.stack.readNumber();
+            const totalPay = res.stack.readNumber();
+            
+            previewEl.textContent =
+`==== PAYMENT PREVIEW ====
 Сумма:           ${fromNano(amount)} TON
-Комиссия:        ${fromNano(commission)} TON (${buyerPays ? 'покупатель' : 'продавец'})
-Итого к оплате:  ${fromNano(totalPay)} TON
-===============================`;
-        } catch (e) {
-          previewEl.textContent = 'Ошибка расчёта: ' + e.message;
-        }
-      });
+Комиссия:        ${fromNano(BigInt(commission))} TON
+Итого к оплате:  ${fromNano(BigInt(totalPay))} TON
+========================`;
+          } catch (e) {
+            previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message||e);
+            console.error(e);
+          }
+        });
 
-      sendBtn.addEventListener('click', async () => {
-        statusEl.textContent = '';
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        if (!currentWallet || !currentWallet.account || !currentWallet.account.address) {
-          alert('Кошелёк не подключён или адрес не доступен');
-          return;
-        }
-
-        const buyerAddrFromWallet = currentWallet.account.address;
-        const { totalPay, amount, buyerPays } = calcPreview();
-
-        const reqBody = {
-          req: {
+        // ---------- SEND payment ----------
+        sendBtn.addEventListener('click', async () => {
+          const to = contractAddressEl.value.trim();
+          if (!to) { alert('Укажите адрес контракта'); return; }
+          if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
+          
+          const buyerAddrFromWallet = currentWallet.account.address;
+          
+          // Get real commission from contract
+          let totalPay, amount;
+          try {
+            const client = await rpcClientForCurrentNet();
+            amount = toNano(amountTonEl.value || '0');
+            const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
+            
+            const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
+              { type: 'int', value: amount },
+              { type: 'int', value: buyerPays }
+            ]);
+            
+            totalPay = BigInt(res.stack.readNumber());
+          } catch (e) {
+            logStatus('Ошибка получения комиссии: ' + (e?.message||e));
+            return;
+          }
+          
+          const reqBody = {
             buyer: buyerAddrFromWallet,
             seller: sellerEl.value.trim(),
             amount: amount.toString(),
-            buyerPaysCommission: buyerPays,
+            buyerPaysCommission: buyerPaysEl.value === 'true',
             optionalCommissionWallet: (partnerEl.value || '').trim() || null
-          },
-          deadline: Math.floor(Date.now() / 1000) + 3600
-        };
-
-        console.log('Request body for', API_URL, reqBody);
-        let payloadBase64 = '';
-        try {
-          // Всегда строим payload локально через TonCore
-          payloadBase64 = await buildPayloadLocally(reqBody.req, reqBody.deadline);
-          payloadEl.value = payloadBase64;
-        } catch (e) {
-          statusEl.textContent = 'Не удалось сформировать payload локально: ' + (e?.message || e);
-          console.error('payload error:', e);
-          return;
-        }
-
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [
-            {
+          };
+          
+          let payloadBase64 = '';
+          try {
+            payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now()/1000) + 3600);
+          } catch (e) {
+            logStatus('payload error: ' + (e?.message||e));
+            return;
+          }
+          
+          const tx = {
+            validUntil: Math.floor(Date.now()/1000) + 300,
+            messages: [{
               address: to,
               amount: totalPay.toString(),
-              payload: payloadBase64 || undefined
+              payload: payloadBase64
+            }]
+          };
+          
+          try {
+            logStatus('Отправляем платёж…');
+            await tonConnectUI.sendTransaction(tx);
+            logStatus('Платёж отправлен.');
+          } catch (e) {
+            logStatus('Ошибка/отмена платежа: ' + (e?.message||e));
+          }
+        });
+
+        // ---------- READ: getConfig / getOps ----------
+        async function readConfig() {
+          const addr = (contractAddressEl.value||'').trim();
+          if (!addr) throw new Error('Укажите адрес контракта');
+          
+          const client = await rpcClientForCurrentNet();
+          const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+          
+          const owner = res.stack.readAddress().toString({ bounceable: true });
+          const mainWallet = res.stack.readAddress().toString({ bounceable: true });
+          const nft = res.stack.readAddress().toString({ bounceable: true });
+          const bps = res.stack.readNumber();
+          
+          currentOwnerEl.value = owner;
+          currentBpsEl.value = String(bps);
+          logStatus(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, bps=${bps}`);
+          
+          // Проверяем совпадение owner с подключенным кошельком
+          const ownerCheckEl = document.getElementById('ownerCheck');
+          if (currentWallet?.account?.address) {
+            try {
+              const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
+              const isOwner = walletAddr === owner;
+              
+              ownerCheckEl.classList.remove('hidden');
+              if (isOwner) {
+                ownerCheckEl.textContent = '✓ Вы — владелец';
+                ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
+                logStatus('✓ Подключенный кошелек является владельцем контракта');
+              } else {
+                ownerCheckEl.textContent = '✗ Вы не владелец';
+                ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
+                logStatus('✗ Подключенный кошелек НЕ является владельцем контракта');
+              }
+            } catch (e) {
+              console.error('Owner check error:', e);
+              ownerCheckEl.classList.add('hidden');
             }
-          ]
-        };
-
-        try {
-          statusEl.textContent = 'Отправляем транзакцию…';
-          const res = await tonConnectUI.sendTransaction(tx);
-          statusEl.textContent = 'Отправлено. Проверьте кошелёк.';
-          console.log('TonConnect result:', res);
-        } catch (e) {
-          statusEl.textContent = 'Отправка отклонена или ошибка: ' + (e?.message || e);
+          } else {
+            ownerCheckEl.classList.add('hidden');
+          }
         }
-      });
 
-      // дополнительная подсказка: если сервер на другом origin, поменяйте API_URL и убедитесь, что сервер отвечает CORS заголовками.
+        async function readOps() {
+          const addr = (contractAddressEl.value||'').trim();
+          if (!addr) throw new Error('Укажите адрес контракта');
+          
+          const client = await rpcClientForCurrentNet();
+          const res = await client.runMethod(TonAddress.parse(addr), 'getOps');
+          
+          OPS.transfer = Number(res.stack.readNumber());
+          OPS.setBps = Number(res.stack.readNumber());
+          OPS.withdrawAll = Number(res.stack.readNumber());
+          OPS.setOwner = Number(res.stack.readNumber());
+          
+          logStatus(`OPs: transfer=${OPS.transfer}, setBps=${OPS.setBps}, withdrawAll=${OPS.withdrawAll}, setOwner=${OPS.setOwner}`);
+        }
+
+        document.getElementById('readConfigBtn').addEventListener('click', () => 
+          readConfig().catch(e => logStatus('getConfig error: '+(e?.message||e)))
+        );
+        
+        document.getElementById('readOpsBtn').addEventListener('click', () => 
+          readOps().catch(e => logStatus('getOps error: '+(e?.message||e)))
+        );
+
+        // ---------- READ: nonceOf ----------
+        document.getElementById('nonceBtn').addEventListener('click', async () => {
+          nonceOut.textContent = '';
+          try {
+            const addr = (contractAddressEl.value||'').trim();
+            if (!addr) throw new Error('Укажите адрес контракта');
+            
+            const who = (nonceAddrEl.value||'').trim();
+            if (!who) throw new Error('Укажите адрес аккаунта');
+            
+            const client = await rpcClientForCurrentNet();
+            const cell = beginCell();
+            cell.storeAddress(Address.parse(who));
+            
+            const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
+              { type: 'slice', cell: cell.endCell() }
+            ]);
+            
+            const n = res.stack.readNumber();
+            nonceOut.textContent = `nonceOf(${who}) = ${n}`;
+          } catch (e) {
+            nonceOut.textContent = 'nonceOf error: ' + (e?.message||e);
+            console.error(e);
+          }
+        });
+
+        // ---------- ADMIN sends ----------
+        async function sendAdminMessage({ to, payloadBase64, value = '0' }) {
+          const tx = {
+            validUntil: Math.floor(Date.now()/1000) + 300,
+            messages: [{
+              address: to,
+              amount: value,
+              payload: payloadBase64
+            }]
+          };
+          logStatus('Отправляем админ-транзакцию…');
+          const res = await tonConnectUI.sendTransaction(tx);
+          logStatus('Админ-транзакция отправлена.');
+          logStatus('Ожидание подтверждения (10 сек)...');
+          
+          // Автообновление конфига через 10 секунд
+          setTimeout(async () => {
+            try {
+              logStatus('Обновляем конфиг...');
+              await readConfig();
+            } catch (e) {
+              logStatus('Не удалось обновить конфиг: ' + (e?.message||e));
+            }
+          }, 10000);
+          
+          return res;
+        }
+
+        document.getElementById('sendSetBpsBtn').addEventListener('click', async () => {
+          const to = contractAddressEl.value.trim();
+          if (!to) { alert('Укажите адрес контракта'); return; }
+          
+          const bps = Number(newBpsEl.value||'');
+          if (!Number.isInteger(bps) || bps<0 || bps>10000) {
+            alert('bps 0..10000');
+            return;
+          }
+          
+          try {
+            if (!OPS.setBps) await readOps();
+            const payload = await buildSetBpsPayload(bps);
+            await sendAdminMessage({ to, payloadBase64: payload });
+            logStatus(`Новый bps ${bps} будет применен через несколько секунд`);
+          } catch (e) {
+            logStatus('SetBps error: ' + (e?.message||e));
+          }
+        });
+
+        document.getElementById('sendWithdrawAllBtn').addEventListener('click', async () => {
+          const to = contractAddressEl.value.trim();
+          if (!to) { alert('Укажите адрес контракта'); return; }
+          
+          const wto = (withdrawToEl.value||'').trim();
+          if (!wto) { alert('Укажите адрес получателя'); return; }
+          
+          try {
+            if (!OPS.withdrawAll) await readOps();
+            const payload = await buildWithdrawAllPayload(wto);
+            await sendAdminMessage({ to, payloadBase64: payload });
+            logStatus('Средства будут выведены через несколько секунд');
+          } catch (e) {
+            logStatus('WithdrawAll error: ' + (e?.message||e));
+          }
+        });
+
+        document.getElementById('sendSetOwnerBtn').addEventListener('click', async () => {
+          const to = contractAddressEl.value.trim();
+          if (!to) { alert('Укажите адрес контракта'); return; }
+          
+          const newOwner = (newOwnerEl.value||'').trim();
+          if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
+          
+          try {
+            if (!OPS.setOwner) await readOps();
+            const payload = await buildSetOwnerPayload(newOwner);
+            await sendAdminMessage({ to, payloadBase64: payload });
+            logStatus('Владелец будет изменен через несколько секунд');
+          } catch (e) {
+            logStatus('SetOwner error: ' + (e?.message||e));
+          }
+        });
+
+        // ---------- Manifest sanity-check ----------
+        (async () => {
+          const statusEl = document.getElementById('manifest-status');
+          try {
+            const r = await fetch(manifestUrlResolved, { cache: 'no-store' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const j = await r.json();
+            const origin = new URL(j.url, window.location.href).origin;
+            statusEl.textContent = (origin !== window.location.origin)
+              ? `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`
+              : '';
+          } catch (e) {
+            statusEl.textContent = `Манифест недоступен: ${e.message}`;
+          }
+        })();
+
+        logStatus('Приложение инициализировано');
+
+      }).catch(error => {
+        console.error('Init error:', error);
+        alert('Ошибка загрузки библиотек: ' + error.message);
+      });
     </script>
   </body>
 </html>
