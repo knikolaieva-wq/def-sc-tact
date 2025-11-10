@@ -114,11 +114,9 @@
             <h2 class="text-xl font-semibold">Админка</h2>
             <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
           </div>
-
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="flex items-end gap-3 md:col-span-2">
               <button id="readConfigBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать конфиг</button>
-              <button id="readOpsBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Показать op-коды</button>
               <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
             </div>
 
@@ -183,7 +181,13 @@
         manifestUrl: manifestUrlResolved
       });
 
-      let OPS = { transfer: 1120014202, setBps: 0, withdrawAll: 0, setOwner: 0 };
+      // ЗАХАРДКОЖЕНЫ все op-коды из TypeScript файла PaymentProcessor_PaymentProcessor.ts
+      const OPS = { 
+        transfer: 1120014202,      // 0x42c20f7a - Transfer
+        setBps: 4004194512,         // 0xeeccd350 - SetPlatformCommissionBps
+        withdrawAll: 3794127834,    // 0xe226cbda - WithdrawAll
+        setOwner: 3266583875        // 0xc2b41d43 - SetOwner
+      };
 
       // ---------- LOCALSTORAGE HELPERS ----------
       const STORAGE_KEY = 'ton_payment_form_data';
@@ -288,7 +292,7 @@
           return new TonClient({ endpoint });
         }
 
-        // ---------- PAYLOAD BUILDERS ----------
+        // ---------- PAYLOAD BUILDERS (используют OPS) ----------
         async function buildTransferPayload(req, deadline) {
           const b0 = beginCell();
           b0.storeUint(OPS.transfer, 32);
@@ -482,14 +486,18 @@
               { type: 'int', value: buyerPays }
             ]);
             
-            const commission = res.stack.readNumber();
-            const totalPay = res.stack.readNumber();
+            // ИСПРАВЛЕНО: правильный порядок чтения стека
+            // previewPayment возвращает Preview{ commission, totalPay }
+            const commission = BigInt(res.stack.readNumber());
+            const totalPay = BigInt(res.stack.readNumber());
+            
+            console.log('Preview:', { amount, commission, totalPay });
             
             previewEl.textContent =
 `==== PAYMENT PREVIEW ====
 Сумма:           ${fromNano(amount)} TON
-Комиссия:        ${fromNano(BigInt(commission))} TON
-Итого к оплате:  ${fromNano(BigInt(totalPay))} TON
+Комиссия:        ${fromNano(commission)} TON
+Итого к оплате:  ${fromNano(totalPay)} TON
 ========================`;
           } catch (e) {
             const msg = String(e?.message || e || '');
@@ -570,6 +578,12 @@
             }]
           };
           
+          console.log('Sending transaction:', {
+            to,
+            amount: totalPay.toString(),
+            amountTON: fromNano(totalPay)
+          });
+          
           try {
             logStatus('Отправляем платёж…');
             await tonConnectUI.sendTransaction(tx);
@@ -579,7 +593,7 @@
           }
         });
 
-        // ---------- READ: getConfig / getOps ----------
+        // ---------- READ: getConfig ----------
         async function readConfig() {
           const addr = (contractAddressEl.value||'').trim();
           if (!addr) throw new Error('Укажите адрес контракта');
@@ -622,27 +636,8 @@
           }
         }
 
-        async function readOps() {
-          const addr = (contractAddressEl.value||'').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
-          
-          const client = await rpcClientForCurrentNet();
-          const res = await client.runMethod(TonAddress.parse(addr), 'getOps');
-          
-          OPS.transfer = Number(res.stack.readNumber());
-          OPS.setBps = Number(res.stack.readNumber());
-          OPS.withdrawAll = Number(res.stack.readNumber());
-          OPS.setOwner = Number(res.stack.readNumber());
-          
-          logStatus(`OPs: transfer=${OPS.transfer}, setBps=${OPS.setBps}, withdrawAll=${OPS.withdrawAll}, setOwner=${OPS.setOwner}`);
-        }
-
         document.getElementById('readConfigBtn').addEventListener('click', () => 
           readConfig().catch(e => logStatus('getConfig error: '+(e?.message||e)))
-        );
-        
-        document.getElementById('readOpsBtn').addEventListener('click', () => 
-          readOps().catch(e => logStatus('getOps error: '+(e?.message||e)))
         );
 
         // ---------- READ: nonceOf ----------
@@ -672,7 +667,7 @@
         });
 
         // ---------- ADMIN sends ----------
-        async function sendAdminMessage({ to, payloadBase64, value = '0' }) {
+        async function sendAdminMessage({ to, payloadBase64, value = '100000000' }) {
           const tx = {
             validUntil: Math.floor(Date.now()/1000) + 300,
             messages: [{
@@ -710,10 +705,9 @@
           }
           
           try {
-            if (!OPS.setBps) await readOps();
             const payload = await buildSetBpsPayload(bps);
             await sendAdminMessage({ to, payloadBase64: payload });
-            logStatus(`Новый bps ${bps} будет применен через несколько секунд`);
+            logStatus(`SetBps отправлен: ${bps}`);
           } catch (e) {
             logStatus('SetBps error: ' + (e?.message||e));
           }
@@ -727,10 +721,9 @@
           if (!wto) { alert('Укажите адрес получателя'); return; }
           
           try {
-            if (!OPS.withdrawAll) await readOps();
             const payload = await buildWithdrawAllPayload(wto);
             await sendAdminMessage({ to, payloadBase64: payload });
-            logStatus('Средства будут выведены через несколько секунд');
+            logStatus('WithdrawAll отправлен');
           } catch (e) {
             logStatus('WithdrawAll error: ' + (e?.message||e));
           }
@@ -744,10 +737,9 @@
           if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
           
           try {
-            if (!OPS.setOwner) await readOps();
             const payload = await buildSetOwnerPayload(newOwner);
             await sendAdminMessage({ to, payloadBase64: payload });
-            logStatus('Владелец будет изменен через несколько секунд');
+            logStatus('SetOwner отправлен');
           } catch (e) {
             logStatus('SetOwner error: ' + (e?.message||e));
           }

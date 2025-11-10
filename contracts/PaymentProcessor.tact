@@ -12,17 +12,6 @@
 // - incrementSuccessfulTx(address)
 // Note: in TON, cross-contract reads are get-method calls, writes are internal messages.
 
-// Message op headers must match compiler-assigned headers
-// Values aligned with build/PaymentProcessor_PaymentProcessor.ts PaymentProcessor_opcodes
-const OP_TRANSFER: Int = 1120014202;        // Transfer
-const OP_SET_BPS: Int = 4004194512;         // SetPlatformCommissionBps
-const OP_WITHDRAW_ALL: Int = 3794127834;    // WithdrawAll
-const OP_SET_OWNER: Int = 3266583875;       // SetOwner
-trait IDefNFT {
-    abstract get fun getPlatformShareBpsForWallet(wallet: Address): Int;
-    // incrementSuccessfulTx вызывается как входящее сообщение у внешнего контракта через send(body)
-}
-
 struct PaymentRequest {
     buyer: Address;
     seller: Address;
@@ -41,13 +30,6 @@ struct ConfigResponse {
     mainCommissionWallet: Address;
     nftCollection: Address;
     platformCommissionBps: Int;
-}
-
-struct OpsResponse {
-    opTransfer: Int;
-    opSetBps: Int;
-    opWithdrawAll: Int;
-    opSetOwner: Int;
 }
 
 message Transfer { req: PaymentRequest; deadline: Int; }
@@ -82,16 +64,6 @@ contract PaymentProcessor {
         };
     }
 
-
-    get fun getOps(): OpsResponse {
-        return OpsResponse{
-            opTransfer: OP_TRANSFER,
-            opSetBps: OP_SET_BPS,
-            opWithdrawAll: OP_WITHDRAW_ALL,
-            opSetOwner: OP_SET_OWNER
-        };
-    }
-
     // ============ Admin ============
     receive(m: SetOwner) {
         require(sender() == self.owner, "only owner");
@@ -113,18 +85,17 @@ contract PaymentProcessor {
     }
 
     // ============ Payment entry ============
-    // Direct-call flow: the buyer must be the sender of the message.
-    // If you need relaying + offchain signatures, extend with ed25519 signature verification on a canonical payload.
     receive(t: Transfer) {
         let req = t.req;
-        require(req.seller != req.buyer, "invalid seller");
+        
+        // Базовые проверки
         require(req.amount > 0, "invalid amount");
+        require(req.seller != req.buyer, "invalid seller");
         require(now() <= t.deadline, "expired");
+        require(sender() == req.buyer, "buyer must send");
 
         // Nonce check & consume
         let currentNonce = self.nonces.get(req.buyer);
-        // In this direct-call variant, we bind nonce usage to buyer == msg.sender
-        require(sender() == req.buyer, "buyer must send");
         let nextNonce: Int = (currentNonce != null) ? (currentNonce!! + 1) : 1;
         self.nonces.set(req.buyer, nextNonce);
 
@@ -135,31 +106,55 @@ contract PaymentProcessor {
         // Validate attached value
         require(context().value >= totalPay, "insufficient value");
 
-        // Seller payout
+        // Seller payout - отправляем режим 1 (обычная отправка с оплатой комиссий из пересылаемой суммы)
         if (req.buyerPaysCommission) {
-            send(SendParameters{ to: req.seller, value: req.amount, bounce: false });
+            send(SendParameters{ 
+                to: req.seller, 
+                value: req.amount,
+                mode: 1,
+                bounce: true
+            });
         } else {
-            send(SendParameters{ to: req.seller, value: req.amount - commission, bounce: false });
+            send(SendParameters{ 
+                to: req.seller, 
+                value: req.amount - commission,
+                mode: 1,
+                bounce: true
+            });
         }
 
-        // Optional share via nftCollection
-        // NOTE: External get-method calls to nftCollection are disabled in this minimal build.
-        // You can wire them using Tact's external get invocation APIs.
-        let share: Int = 0;
-        let optionalPart: Int = (share > 0) ? ((commission * share) / 10000) : 0;
-
-        let platformPart = commission - optionalPart;
-        if (platformPart > 0) {
-            send(SendParameters{ to: self.mainCommissionWallet, value: platformPart, bounce: false });
-        }
-        if (optionalPart > 0 && req.optionalCommissionWallet != null) {
-            send(SendParameters{ to: req.optionalCommissionWallet!!, value: optionalPart, bounce: false });
+        // Platform commission - отправляем если есть
+        if (commission > 0) {
+            send(SendParameters{ 
+                to: self.mainCommissionWallet, 
+                value: commission,
+                mode: 1,
+                bounce: true
+            });
         }
 
-        // Refund change (if any) back to sender
+        // Optional partner commission (пока отключено, но структура готова)
+        // if (req.optionalCommissionWallet != null) {
+        //     let optionalPart = (commission * shareFromNFT) / 10000;
+        //     if (optionalPart > 0) {
+        //         send(SendParameters{ 
+        //             to: req.optionalCommissionWallet!!, 
+        //             value: optionalPart,
+        //             mode: 1,
+        //             bounce: true
+        //         });
+        //     }
+        // }
+
+        // Возврат сдачи (если есть) - режим 64 (вернуть все оставшиеся средства)
         let change = context().value - totalPay;
         if (change > 0) {
-            send(SendParameters{ to: sender(), value: change, bounce: false });
+            send(SendParameters{ 
+                to: sender(), 
+                value: change,
+                mode: 0,
+                bounce: false
+            });
         }
     }
 
