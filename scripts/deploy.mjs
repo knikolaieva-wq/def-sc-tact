@@ -77,9 +77,9 @@ async function loadDeployerWallet(client) {
 
 async function main() {
   const args = parseArgs();
-  const OWNER = args.owner || process.env.OWNER || '';
-  const MAIN = args.main || process.env.MAIN_COMMISSION_WALLET || '';
-  const NFT = args.nft || process.env.NFT_COLLECTION || '';
+  const OWNER = (args.owner || process.env.OWNER || '').trim();
+  const MAIN = (args.main || process.env.MAIN_COMMISSION_WALLET || '').trim();
+  const NFT = (args.nft || process.env.NFT_COLLECTION || '').trim();
   if (!OWNER || !MAIN || !NFT) throw new Error('Missing constructor params: OWNER, MAIN_COMMISSION_WALLET, NFT_COLLECTION');
 
   console.log('Compiling Tact contract…');

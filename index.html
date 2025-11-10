@@ -492,7 +492,14 @@
 Итого к оплате:  ${fromNano(BigInt(totalPay))} TON
 ========================`;
           } catch (e) {
-            previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message||e);
+            const msg = String(e?.message || e || '');
+            let hint = '';
+            if (msg.includes('exit_code: -13') || msg.includes('exit code: -13')) {
+              hint = '\nПодсказка: проверьте, что контракт реально деплоен по этому адресу в выбранной сети (testnet/mainnet), адрес введён корректно (EQ… формат), и RPC доступен.';
+            } else if (/contract.*not.*active|code.*not.*found/i.test(msg)) {
+              hint = '\nПодсказка: аккаунт по этому адресу не активен — сперва задеплойте контракт.';
+            }
+            previewEl.textContent = 'Ошибка предпросмотра: ' + msg + hint;
             console.error(e);
           }
         });
@@ -516,12 +523,27 @@
               { type: 'int', value: amount },
               { type: 'int', value: buyerPays }
             ]);
-            
+            // Contract returns (commission, totalPay)
+            const commission = BigInt(res.stack.readNumber());
             totalPay = BigInt(res.stack.readNumber());
+            logStatus(`previewPayment: amount=${fromNano(amount)} TON, commission=${fromNano(commission)} TON, total=${fromNano(totalPay)} TON`);
           } catch (e) {
-            logStatus('Ошибка получения комиссии: ' + (e?.message||e));
+            const msg = String(e?.message || e || '');
+            let hint = '';
+            if (msg.includes('exit_code: -13') || msg.includes('exit code: -13')) {
+              hint = ' — проверьте, что контракт деплоен в выбранной сети и адрес корректен (EQ…).';
+            } else if (/contract.*not.*active|code.*not.*found/i.test(msg)) {
+              hint = ' — аккаунт не активен: нужно задеплоить контракт.';
+            }
+            logStatus('Ошибка получения комиссии: ' + msg + hint);
             return;
           }
+          
+          // Add a small buffer to cover forwarding fees and gas; contract will refund change
+          const SEND_BUFFER_NANO = 50_000_000n; // 0.05 TON
+          const sendAmountNano = totalPay + SEND_BUFFER_NANO;
+          logStatus(`sending: total+buffer=${fromNano(sendAmountNano)} TON (buffer=${fromNano(SEND_BUFFER_NANO)} TON)`);
+          const sendAmount = sendAmountNano.toString();
           
           const reqBody = {
             buyer: buyerAddrFromWallet,
@@ -543,7 +565,7 @@
             validUntil: Math.floor(Date.now()/1000) + 300,
             messages: [{
               address: to,
-              amount: totalPay.toString(),
+              amount: sendAmount,
               payload: payloadBase64
             }]
           };

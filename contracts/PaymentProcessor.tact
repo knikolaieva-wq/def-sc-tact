@@ -12,10 +12,12 @@
 // - incrementSuccessfulTx(address)
 // Note: in TON, cross-contract reads are get-method calls, writes are internal messages.
 
-const OP_TRANSFER: Int = 1120014202; // уже используете в фронтенде
-const OP_SET_BPS: Int = 3762819951; // новый (фиксируем)
-const OP_WITHDRAW_ALL: Int = 2391568291; // новый (фиксируем)
-const OP_SET_OWNER: Int = 1529432117; // опционально: смена овнера
+// Message op headers must match compiler-assigned headers
+// Values aligned with build/PaymentProcessor_PaymentProcessor.ts PaymentProcessor_opcodes
+const OP_TRANSFER: Int = 1120014202;        // Transfer
+const OP_SET_BPS: Int = 4004194512;         // SetPlatformCommissionBps
+const OP_WITHDRAW_ALL: Int = 3794127834;    // WithdrawAll
+const OP_SET_OWNER: Int = 3266583875;       // SetOwner
 trait IDefNFT {
     abstract get fun getPlatformShareBpsForWallet(wallet: Address): Int;
     // incrementSuccessfulTx вызывается как входящее сообщение у внешнего контракта через send(body)
@@ -135,9 +137,9 @@ contract PaymentProcessor {
 
         // Seller payout
         if (req.buyerPaysCommission) {
-            send(SendParameters{ to: req.seller, value: req.amount });
+            send(SendParameters{ to: req.seller, value: req.amount, bounce: false });
         } else {
-            send(SendParameters{ to: req.seller, value: req.amount - commission });
+            send(SendParameters{ to: req.seller, value: req.amount - commission, bounce: false });
         }
 
         // Optional share via nftCollection
@@ -148,16 +150,16 @@ contract PaymentProcessor {
 
         let platformPart = commission - optionalPart;
         if (platformPart > 0) {
-            send(SendParameters{ to: self.mainCommissionWallet, value: platformPart });
+            send(SendParameters{ to: self.mainCommissionWallet, value: platformPart, bounce: false });
         }
         if (optionalPart > 0 && req.optionalCommissionWallet != null) {
-            send(SendParameters{ to: req.optionalCommissionWallet!!, value: optionalPart });
+            send(SendParameters{ to: req.optionalCommissionWallet!!, value: optionalPart, bounce: false });
         }
 
         // Refund change (if any) back to sender
         let change = context().value - totalPay;
         if (change > 0) {
-            send(SendParameters{ to: sender(), value: change });
+            send(SendParameters{ to: sender(), value: change, bounce: false });
         }
     }
 
