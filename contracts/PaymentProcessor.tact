@@ -99,63 +99,48 @@ contract PaymentProcessor {
         let nextNonce: Int = (currentNonce != null) ? (currentNonce!! + 1) : 1;
         self.nonces.set(req.buyer, nextNonce);
 
-        // Compute commissions
         let commission = (req.amount * self.platformCommissionBps) / 10000;
         let totalPay = req.buyerPaysCommission ? (req.amount + commission) : req.amount;
 
-        // Validate attached value
         require(context().value >= totalPay, "insufficient value");
 
-        // Seller payout - отправляем режим 1 (обычная отправка с оплатой комиссий из пересылаемой суммы)
+        // ИСПРАВЛЕНО: mode: 0 = вычитать из баланса контракта (из входящих средств)
+        
+        // 1. Отправка продавцу
         if (req.buyerPaysCommission) {
             send(SendParameters{ 
                 to: req.seller, 
                 value: req.amount,
-                mode: 1,
+                mode: 0,  // получатель получит ровно req.amount
                 bounce: true
             });
         } else {
             send(SendParameters{ 
                 to: req.seller, 
                 value: req.amount - commission,
-                mode: 1,
+                mode: 0,
                 bounce: true
             });
         }
 
-        // Platform commission - отправляем если есть
+        // 2. Отправка комиссии платформе
         if (commission > 0) {
             send(SendParameters{ 
                 to: self.mainCommissionWallet, 
                 value: commission,
-                mode: 1,
+                mode: 0,  // получатель получит ровно commission
                 bounce: true
             });
         }
 
-        // Optional partner commission (пока отключено, но структура готова)
-        // if (req.optionalCommissionWallet != null) {
-        //     let optionalPart = (commission * shareFromNFT) / 10000;
-        //     if (optionalPart > 0) {
-        //         send(SendParameters{ 
-        //             to: req.optionalCommissionWallet!!, 
-        //             value: optionalPart,
-        //             mode: 1,
-        //             bounce: true
-        //         });
-        //     }
-        // }
-
-        // Возврат сдачи (если есть) - режим 64 (вернуть все оставшиеся средства)
-        let change = context().value - totalPay;
-        if (change > 0) {
-            send(SendParameters{ 
-                to: sender(), 
-                value: change,
-                mode: 0,
-                bounce: false
-            });
-        }
+        // 3. ВОЗВРАТ ОСТАТКА ПОКУПАТЕЛЮ (mode: 64)
+        // Отправляет ВСЁ что осталось на контракте после предыдущих отправок
+        send(SendParameters{ 
+            to: sender(),
+            value: 0,
+            mode: 64, // отправить все оставшиеся средства
+            bounce: false
+        });
     }
 
     // ============ Views ============
