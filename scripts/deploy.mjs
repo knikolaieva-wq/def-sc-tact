@@ -36,6 +36,8 @@ function parseArgs() {
     else if (a === '--main') out.main = args[++i];
     else if (a === '--nft') out.nft = args[++i];
     else if (a === '--value') out.value = args[++i];
+    else if (a === '--deploy-nft') out.deployNft = true;
+    else if (a === '--nft-owner') out.nftOwner = args[++i];
   }
   return out;
 }
@@ -160,6 +162,52 @@ async function main() {
     }
   }
   console.log('Deploy sent. Check explorer:', `https://testnet.tonviewer.com/${contractAddr.toString()}`);
+
+  // Optional DefNFT deploy
+  if (args.deployNft) {
+    try {
+      const ownerStr = (args.nftOwner || process.env.NFT_OWNER || wallet.address.toString()).trim();
+      const ownerAddr = Address.parse(ownerStr);
+      const baseNft = 'build/DefNFT_DefNFT';
+      let codeN;
+      try {
+        const codeBoc = readFileSync(`${baseNft}.code.boc`);
+        codeN = Cell.fromBoc(codeBoc)[0];
+      } catch (e) {
+        const pkg = JSON.parse(readFileSync(`${baseNft}.pkg`, 'utf8'));
+        codeN = Cell.fromBoc(Buffer.from(pkg.code, 'base64'))[0];
+      }
+
+      // Minimal data: prefix + owner + nextTokenId=1 (maps default empty)
+      const dataN = beginCell()
+        .storeBit(0)
+        .storeAddress(ownerAddr)
+        .storeInt(1n, 257)
+        .endCell();
+
+      const stateInitN = beginCell()
+        .storeBit(0)
+        .storeBit(0)
+        .storeBit(1).storeRef(codeN)
+        .storeBit(1).storeRef(dataN)
+        .storeBit(0)
+        .endCell();
+      const nftAddr = new Address(0, stateInitN.hash());
+      console.log('DefNFT address (predicted):', nftAddr.toString());
+
+      const deployValueN = toNano('0.2');
+      const bodyN = beginCell().endCell();
+      await walletContract.sendTransfer({
+        seqno: await walletContract.getSeqno(),
+        secretKey: keyPair.secretKey,
+        messages: [ internal({ to: nftAddr, value: deployValueN, init: { code: codeN, data: dataN }, body: bodyN, bounce: false }) ],
+      });
+      console.log('DefNFT deploy sent. Check explorer:', `https://testnet.tonviewer.com/${nftAddr.toString()}`);
+      console.log('NOTE: If init layout mismatches compiler, consider deploying via generated bindings.');
+    } catch (e) {
+      console.error('DefNFT deploy failed:', e?.message || e);
+    }
+  }
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });

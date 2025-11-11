@@ -33,6 +33,10 @@
           <p id="netInfo" class="text-gray-600">Сеть: TON Testnet</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
+          <div class="inline-flex rounded-xl border border-gray-300 overflow-hidden">
+            <button id="tabPayment" class="px-3 py-2 text-sm font-medium bg-black text-white">Payments</button>
+            <button id="tabNFT" class="px-3 py-2 text-sm font-medium bg-white text-gray-900">NFT Manager</button>
+          </div>
           <select id="tonNetwork" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
             <option value="testnet" selected>TON Testnet</option>
             <option value="mainnet">TON Mainnet</option>
@@ -50,8 +54,54 @@
           Интерфейс считает комиссии, умеет читать get-методы и отправлять админ-вызовы через TonConnect. Payload'ы кодируются локально.
         </div>
 
-        <!-- === ПЛАТЁЖ === -->
-        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+        <!-- === ПЛАТЁЖ + АДМИНКА (вверху) === -->
+        <section id="sectionPayments" class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <!-- Админка сверху -->
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Админка</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="readConfigBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать конфиг</button>
+              <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Текущий bps</span>
+              <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800" disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Овнер</span>
+              <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800" disabled />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый bps</span>
+              <input id="newBps" type="number" min="0" max="10000" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="например, 35" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetBpsBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Установить bps</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Вывести все средства на адрес</span>
+              <input id="withdrawTo" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendWithdrawAllBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Вывести</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый овнер</span>
+              <input id="newOwner" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetOwnerBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Сменить овнера</button>
+            </div>
+          </div>
+
+          <!-- Платёж -->
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold">Платёж</h2>
             <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">User flow</span>
@@ -108,52 +158,117 @@
           </div>
         </section>
 
-        <!-- === АДМИНКА === -->
-        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+        <!-- === NFT MANAGER === -->
+        <section id="sectionNFT" class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6 hidden">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold">Админка</h2>
-            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
+            <h2 class="text-xl font-semibold">NFT Manager (DefNFT)</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-gray-900 text-white">Admin + Utils</span>
           </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес контракта DefNFT</span>
+              <input id="nftAddress" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+            </label>
+
+            <div class="flex items-end gap-3">
+              <button id="nftReadOpsBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white">Читать OPs</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Mint: получатель</span>
+              <input id="nftMintTo" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Mint: shareBps (0..10000)</span>
+              <input id="nftMintBps" type="number" min="0" max="10000" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="100" />
+            </label>
+            <label class="flex flex-col gap-1 md:col-span-2">
+              <span class="text-sm font-medium">Mint: tokenURI (строка)</span>
+              <input id="nftMintURI" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="https://…" />
+            </label>
             <div class="flex items-end gap-3 md:col-span-2">
-              <button id="readConfigBtn" class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать конфиг</button>
-              <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+              <button id="nftMintBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900">Mint (owner)</button>
             </div>
 
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Текущий bps</span>
-              <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800" disabled />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Овнер</span>
-              <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800" disabled />
-            </label>
-
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Новый bps</span>
-              <input id="newBps" type="number" min="0" max="10000" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="например, 35" />
+              <span class="text-sm font-medium">Burn: tokenId</span>
+              <input id="nftBurnTokenId" type="number" min="1" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="1" />
             </label>
             <div class="flex items-end gap-3">
-              <button id="sendSetBpsBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Установить bps</button>
+              <button id="nftBurnBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900">Burn (owner of token)</button>
             </div>
 
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Вывести все средства на адрес</span>
-              <input id="withdrawTo" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+              <span class="text-sm font-medium">Whitelist: wallet</span>
+              <input id="nftWLWallet" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
             </label>
-            <div class="flex items-end gap-3">
-              <button id="sendWithdrawAllBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Вывести</button>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Whitelist: allow?</span>
+              <select id="nftWLAllowed" class="px-3 py-2 rounded-xl border border-gray-300">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </label>
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="nftWLBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900">Set whitelist</button>
             </div>
 
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Новый овнер</span>
-              <input id="newOwner" class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50" placeholder="EQC…" />
+              <span class="text-sm font-medium">Processor: address</span>
+              <input id="nftProcAddr" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Processor: allowed?</span>
+              <select id="nftProcAllowed" class="px-3 py-2 rounded-xl border border-gray-300">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </label>
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="nftProcBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900">Set processor</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">IncSuccess: wallet</span>
+              <input id="nftIncWallet" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
             </label>
             <div class="flex items-end gap-3">
-              <button id="sendSetOwnerBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed" disabled>Сменить овнера</button>
+              <button id="nftIncBtn" class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900">Increment successfulTx</button>
             </div>
+
+            <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium">Getter: tokenOf(owner)</span>
+                <input id="nftGetOwner" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
+                <button id="nftTokenOfBtn" class="mt-2 inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-3 py-2 font-medium hover:bg-gray-900 hover:text-white">tokenOf</button>
+                <div id="nftTokenOfOut" class="text-sm text-gray-700 mt-1"></div>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium">Getter: successfulTxCountOf(wallet)</span>
+                <input id="nftGetSucWallet" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
+                <button id="nftSucBtn" class="mt-2 inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-3 py-2 font-medium hover:bg-gray-900 hover:text-white">successfulTxCountOf</button>
+                <div id="nftSucOut" class="text-sm text-gray-700 mt-1"></div>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium">Getter: shareBps(wallet)</span>
+                <input id="nftGetBpsWallet" class="px-3 py-2 rounded-xl border border-gray-300" placeholder="EQC…" />
+                <button id="nftBpsBtn" class="mt-2 inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-3 py-2 font-medium hover:bg-gray-900 hover:text-white">getPlatformShareBpsForWallet</button>
+                <div id="nftBpsOut" class="text-sm text-gray-700 mt-1"></div>
+              </label>
+            </div>
+
           </div>
 
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+            <div class="font-semibold mb-2">NFT Логи</div>
+            <pre id="nftStatus" class="text-sm"></pre>
+          </div>
+        </section>
+
+        
+        <!-- Логи платежей и админ-операций -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
           <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
             <div class="font-semibold mb-2">Статус / Логи</div>
             <pre id="status" class="text-sm"></pre>
@@ -167,6 +282,37 @@
     </div>
 
     <script>
+      // Early tab switcher wiring so clicks work before libs load
+      (function initEarlyTabs() {
+        function toggleTab(isPayments) {
+          const tabPayment = document.getElementById('tabPayment');
+          const tabNFT = document.getElementById('tabNFT');
+          const sectionPayments = document.getElementById('sectionPayments');
+          const sectionNFT = document.getElementById('sectionNFT');
+          if (!tabPayment || !tabNFT || !sectionPayments || !sectionNFT) return;
+          tabPayment.classList.toggle('bg-black', isPayments);
+          tabPayment.classList.toggle('text-white', isPayments);
+          tabPayment.classList.toggle('bg-white', !isPayments);
+          tabPayment.classList.toggle('text-gray-900', !isPayments);
+          tabNFT.classList.toggle('bg-black', !isPayments);
+          tabNFT.classList.toggle('text-white', !isPayments);
+          tabNFT.classList.toggle('bg-white', isPayments);
+          tabNFT.classList.toggle('text-gray-900', isPayments);
+          sectionPayments.classList.toggle('hidden', !isPayments);
+          sectionNFT.classList.toggle('hidden', isPayments);
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+          const tabPayment = document.getElementById('tabPayment');
+          const tabNFT = document.getElementById('tabNFT');
+          if (tabPayment && tabNFT) {
+            tabPayment.addEventListener('click', () => toggleTab(true));
+            tabNFT.addEventListener('click', () => toggleTab(false));
+            // default to payments on load
+            toggleTab(true);
+          }
+        });
+      })();
+
       // ---------- CONFIG ----------
       const API_URL = '/api/transfer';
       const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
@@ -760,3 +906,157 @@
     </script>
   </body>
 </html>
+        // Tabs: Payments / NFT
+        const tabPayment = document.getElementById('tabPayment');
+        const tabNFT = document.getElementById('tabNFT');
+        const sectionPayments = document.getElementById('sectionPayments');
+        const sectionNFT = document.getElementById('sectionNFT');
+        function selectTab(which) {
+          const p = which === 'pay';
+          tabPayment.classList.toggle('bg-black', p);
+          tabPayment.classList.toggle('text-white', p);
+          tabPayment.classList.toggle('bg-white', !p);
+          tabPayment.classList.toggle('text-gray-900', !p);
+          tabNFT.classList.toggle('bg-black', !p);
+          tabNFT.classList.toggle('text-white', !p);
+          tabNFT.classList.toggle('bg-white', p);
+          tabNFT.classList.toggle('text-gray-900', p);
+          sectionPayments.classList.toggle('hidden', !p);
+          sectionNFT.classList.toggle('hidden', p);
+        }
+        tabPayment.addEventListener('click', () => selectTab('pay'));
+        tabNFT.addEventListener('click', () => selectTab('nft'));
+        selectTab('pay');
+
+        // ---------- NFT Manager ----------
+        let NFT_OPS = { mint: 0, burn: 0, setWl: 0, setProc: 0, incSuc: 0 };
+        const nftStatus = document.getElementById('nftStatus');
+        function logNft(msg) { nftStatus.textContent += (msg + '\n'); }
+        function nftAddr() { return (document.getElementById('nftAddress').value||'').trim(); }
+        async function readNftOps() {
+          const addr = nftAddr(); if (!addr) throw new Error('Укажите адрес DefNFT');
+          const client = await rpcClientForCurrentNet();
+          const res = await client.runMethod(TonAddress.parse(addr), 'getOps');
+          NFT_OPS.mint = Number(res.stack.readNumber());
+          NFT_OPS.burn = Number(res.stack.readNumber());
+          NFT_OPS.setWl = Number(res.stack.readNumber());
+          NFT_OPS.setProc = Number(res.stack.readNumber());
+          NFT_OPS.incSuc = Number(res.stack.readNumber());
+          logNft(`NFT OPs: mint=${NFT_OPS.mint}, burn=${NFT_OPS.burn}, setWl=${NFT_OPS.setWl}, setProc=${NFT_OPS.setProc}, incSuc=${NFT_OPS.incSuc}`);
+        }
+        document.getElementById('nftReadOpsBtn').addEventListener('click', () =>
+          readNftOps().catch(e => logNft('getOps error: ' + (e?.message||e)))
+        );
+
+        function b64(cell) { return cell.toBoc({ idx: false }).toString('base64'); }
+        function storeStringToCell(str) {
+          const enc = new TextEncoder();
+          const bytes = enc.encode(str);
+          const b = beginCell();
+          for (const by of bytes) b.storeUint(by, 8);
+          return b.endCell();
+        }
+        async function sendNftMessage({ to, payloadBase64, value = '0.05' }) {
+          const tx = {
+            validUntil: Math.floor(Date.now()/1000) + 300,
+            messages: [{ address: to, amount: toNano(value).toString(), payload: payloadBase64 }]
+          };
+          logNft('Отправляем транзакцию…');
+          await tonConnectUI.sendTransaction(tx);
+          logNft('Транзакция отправлена');
+        }
+
+        // Mint
+        document.getElementById('nftMintBtn').addEventListener('click', async () => {
+          try {
+            if (!NFT_OPS.mint) await readNftOps();
+            const to = nftAddr(); if (!to) throw new Error('Укажите адрес DefNFT');
+            const rcpt = document.getElementById('nftMintTo').value.trim(); if (!rcpt) throw new Error('Получатель');
+            const bps = Number(document.getElementById('nftMintBps').value||'0'); if (bps<0||bps>10000) throw new Error('shareBps 0..10000');
+            const uri = (document.getElementById('nftMintURI').value||'').trim(); if (!uri) throw new Error('tokenURI');
+            const b = beginCell();
+            b.storeUint(NFT_OPS.mint, 32);
+            b.storeAddress(Address.parse(rcpt));
+            b.storeInt(BigInt(bps), 257);
+            const u = storeStringToCell(uri);
+            b.storeRef(u);
+            await sendNftMessage({ to, payloadBase64: b64(b.endCell()) });
+          } catch (e) { logNft('Mint error: ' + (e?.message||e)); }
+        });
+
+        // Burn
+        document.getElementById('nftBurnBtn').addEventListener('click', async () => {
+          try {
+            if (!NFT_OPS.burn) await readNftOps();
+            const to = nftAddr(); if (!to) throw new Error('Укажите адрес DefNFT');
+            const tid = BigInt(document.getElementById('nftBurnTokenId').value||'0'); if (tid<=0n) throw new Error('tokenId>0');
+            const b = beginCell(); b.storeUint(NFT_OPS.burn, 32); b.storeInt(tid, 257);
+            await sendNftMessage({ to, payloadBase64: b64(b.endCell()) });
+          } catch (e) { logNft('Burn error: ' + (e?.message||e)); }
+        });
+
+        // Whitelist
+        document.getElementById('nftWLBtn').addEventListener('click', async () => {
+          try {
+            if (!NFT_OPS.setWl) await readNftOps();
+            const to = nftAddr(); if (!to) throw new Error('Укажите адрес DefNFT');
+            const w = document.getElementById('nftWLWallet').value.trim(); if (!w) throw new Error('wallet');
+            const allowed = document.getElementById('nftWLAllowed').value === 'true';
+            const b = beginCell(); b.storeUint(NFT_OPS.setWl, 32); b.storeAddress(Address.parse(w)); b.storeBit(allowed);
+            await sendNftMessage({ to, payloadBase64: b64(b.endCell()) });
+          } catch (e) { logNft('Whitelist error: ' + (e?.message||e)); }
+        });
+
+        // Processor
+        document.getElementById('nftProcBtn').addEventListener('click', async () => {
+          try {
+            if (!NFT_OPS.setProc) await readNftOps();
+            const to = nftAddr(); if (!to) throw new Error('Укажите адрес DefNFT');
+            const p = document.getElementById('nftProcAddr').value.trim(); if (!p) throw new Error('processor');
+            const allowed = document.getElementById('nftProcAllowed').value === 'true';
+            const b = beginCell(); b.storeUint(NFT_OPS.setProc, 32); b.storeAddress(Address.parse(p)); b.storeBit(allowed);
+            await sendNftMessage({ to, payloadBase64: b64(b.endCell()) });
+          } catch (e) { logNft('Processor error: ' + (e?.message||e)); }
+        });
+
+        // Increment successful tx
+        document.getElementById('nftIncBtn').addEventListener('click', async () => {
+          try {
+            if (!NFT_OPS.incSuc) await readNftOps();
+            const to = nftAddr(); if (!to) throw new Error('Укажите адрес DefNFT');
+            const w = document.getElementById('nftIncWallet').value.trim(); if (!w) throw new Error('wallet');
+            const b = beginCell(); b.storeUint(NFT_OPS.incSuc, 32); b.storeAddress(Address.parse(w));
+            await sendNftMessage({ to, payloadBase64: b64(b.endCell()), value: '0.05' });
+          } catch (e) { logNft('Increment error: ' + (e?.message||e)); }
+        });
+
+        // Getters
+        document.getElementById('nftTokenOfBtn').addEventListener('click', async () => {
+          const out = document.getElementById('nftTokenOfOut'); out.textContent='';
+          try { const addr = nftAddr(); if (!addr) throw new Error('Укажите адрес DefNFT');
+            const who = document.getElementById('nftGetOwner').value.trim(); if (!who) throw new Error('owner');
+            const client = await rpcClientForCurrentNet();
+            const res = await client.runMethod(TonAddress.parse(addr), 'tokenOf', [{ type:'slice', cell: beginCell().storeAddress(Address.parse(who)).endCell() }]);
+            out.textContent = String(res.stack.readNumber());
+          } catch (e) { out.textContent = 'tokenOf error: ' + (e?.message||e); }
+        });
+
+        document.getElementById('nftSucBtn').addEventListener('click', async () => {
+          const out = document.getElementById('nftSucOut'); out.textContent='';
+          try { const addr = nftAddr(); if (!addr) throw new Error('Укажите адрес DefNFT');
+            const who = document.getElementById('nftGetSucWallet').value.trim(); if (!who) throw new Error('wallet');
+            const client = await rpcClientForCurrentNet();
+            const res = await client.runMethod(TonAddress.parse(addr), 'successfulTxCountOf', [{ type:'slice', cell: beginCell().storeAddress(Address.parse(who)).endCell() }]);
+            out.textContent = String(res.stack.readNumber());
+          } catch (e) { out.textContent = 'successfulTxCountOf error: ' + (e?.message||e); }
+        });
+
+        document.getElementById('nftBpsBtn').addEventListener('click', async () => {
+          const out = document.getElementById('nftBpsOut'); out.textContent='';
+          try { const addr = nftAddr(); if (!addr) throw new Error('Укажите адрес DefNFT');
+            const who = document.getElementById('nftGetBpsWallet').value.trim(); if (!who) throw new Error('wallet');
+            const client = await rpcClientForCurrentNet();
+            const res = await client.runMethod(TonAddress.parse(addr), 'getPlatformShareBpsForWallet', [{ type:'slice', cell: beginCell().storeAddress(Address.parse(who)).endCell() }]);
+            out.textContent = String(res.stack.readNumber());
+          } catch (e) { out.textContent = 'getPlatformShareBpsForWallet error: ' + (e?.message||e); }
+        });

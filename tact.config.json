@@ -5,6 +5,12 @@
       "path": "contracts/PaymentProcessor.tact",
       "output": "build",
       "bindings": "js"
+    },
+    {
+      "name": "DefNFT",
+      "path": "contracts/DefNFT.tact",
+      "output": "build",
+      "bindings": "js"
     }
   ]
 }
