@@ -78,7 +78,11 @@ contract PaymentProcessor {
         require(sender() == self.owner, "only owner");
         let to = w.to;
         let bal = myBalance();
-        require(bal > 0, "empty");
+        // Minimal balance to keep contract operational (rent + small gas headroom)
+        let MIN_KEEP: Int = 10_000_000; // ~0.01 TON
+        require(bal > MIN_KEEP, "below reserve");
+        // Reserve minimal operational balance, send the rest away
+        nativeReserve(MIN_KEEP, 0);
         send(SendParameters{ to: to, value: 0, mode: SendRemainingBalance });
     }
 
