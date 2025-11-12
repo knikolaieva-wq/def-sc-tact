@@ -173,6 +173,30 @@
       const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
       const RPC_MAINNET = 'https://toncenter.com/api/v2/jsonRPC';
       
+      async function estimateFeeViaToncenter({ address, bodyB64 }) {
+        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+        const endpoint = isTestnet ? RPC_TESTNET : RPC_MAINNET; // оба у тебя уже заданы
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: 1,
+            jsonrpc: '2.0',
+            method: 'estimateFee',
+            params: {
+              address,
+              body: bodyB64,
+              // init_code/init_data не нужны — контракт уже задеплоен
+              ignore_chksig: true
+            }
+          })
+        });
+        const data = await resp.json();
+        if (!data?.result?.source_fees) throw new Error(data?.description || 'estimateFee failed');
+        const f = data.result.source_fees;
+        // sum: in_fwd_fee + storage_fee + gas_fee + fwd_fee
+        return BigInt(f.in_fwd_fee) + BigInt(f.storage_fee) + BigInt(f.gas_fee) + BigInt(f.fwd_fee);
+      }
       const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
       const fromNano = (nano) => Number(nano) / 1e9;
       const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
@@ -531,18 +555,10 @@
             ]);
             
             const commission = BigInt(res.stack.readNumber());
-            const totalPayFromContract = BigInt(res.stack.readNumber()) + commission;
-            
-            // ИСПРАВЛЕНО: добавляем фиксированный gas reserve (0.05 TON)
-            // Контракт использует mode: 64 для последней отправки, но нужен запас для вычислений
-            const gasReserve = toNano('0.01'); // 0.005 TON
-            totalPay = totalPayFromContract + gasReserve;
+            totalPay = BigInt(res.stack.readNumber()) + commission;
             
             logStatus(`Amount: ${fromNano(amount)} TON`);
             logStatus(`Commission: ${fromNano(commission)} TON`);
-            logStatus(`Total (contract): ${fromNano(totalPayFromContract)} TON`);
-            logStatus(`Gas reserve: ${fromNano(gasReserve)} TON`);
-            logStatus(`Total to send: ${fromNano(totalPay)} TON`);
           } catch (e) {
             logStatus('Ошибка получения комиссии: ' + (e?.message||e));
             return;
@@ -563,22 +579,34 @@
             logStatus('payload error: ' + (e?.message||e));
             return;
           }
-          
+
+              let networkFees = 0n;
+            try {
+              networkFees = await estimateFeeViaToncenter({ address: to, bodyB64: payloadBase64 });
+            } catch (e) {
+              logStatus('Ошибка естимации комиссии сети: ' + (e?.message||e));
+              return;
+            }
+              console.log('Estimated network fees:', fromNano(networkFees), 'TON');
+        
+          const safety = (() => {
+            const pct = (networkFees * 2n) / 100n;
+            const min = toNano('0.002');
+            const max = toNano('0.02');
+            return pct < min ? min : (pct > max ? max : pct);
+          })();
+          const totalToSend = totalPay + networkFees + safety;
+          logStatus(`Total to send: ${fromNano(totalToSend)} TON`);
+        
           const tx = {
             validUntil: Math.floor(Date.now()/1000) + 300,
             messages: [{
               address: to,
-              amount: totalPay.toString(),
+              amount: totalToSend.toString(),
               payload: payloadBase64
             }]
           };
 
-          console.log('Sending transaction:', {
-            to,
-            amount: totalPay.toString(),
-            amountTON: fromNano(totalPay)
-          });
-          
           try {
             logStatus('Отправляем платёж…');
             await tonConnectUI.sendTransaction(tx);

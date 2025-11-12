@@ -102,20 +102,10 @@ contract PaymentProcessor {
         let sellerValue = req.buyerPaysCommission ? req.amount : (req.amount - commission);
         let commissionValue = commission > 0 ? commission : 0;
 
-        let FWD_PER_MSG: Int = 1_200_000; // 0.0012 TON — консервативно
-        let VM_RESERVE:  Int = 6_000_000; // 0.006 TON — с запасом
-
-        // защищаем старые деньги, чтобы "остаток" был только из входящего
-        let prev = max(myBalance() - context().value, 0);
-        nativeReserve(prev, 0);
-
-        // проверяем, что входящего хватит на точные выплаты + фвд-фи ДВУХ обязательных сообщений + VM
-        let msgsCore: Int = 1; // продавцу
-        if (commissionValue > 0) { 
-            msgsCore += 1; 
-        } // платформе
-        let needed = sellerValue + commissionValue + VM_RESERVE + msgsCore * FWD_PER_MSG;
-        require(context().value >= needed, "insufficient value (fees)");
+        let incoming: Int = context().value;
+        let balBefore: Int = myBalance() - incoming;
+        let prev: Int = (balBefore > 0) ? balBefore : 0;
+        nativeReserve(prev, 0); // фиксируем ровно prev; дальнейшие расходы — из входящего
 
         // Seller payout
         send(SendParameters{ 
@@ -149,15 +139,12 @@ contract PaymentProcessor {
         // }
 
         // Возврат сдачи автоматически отправляет весь оставшийся баланс (с учетом потраченного газа)
-        let spendableAfter = myBalance() - prev; // всё, что можно ещё потратить
-        if (spendableAfter > FWD_PER_MSG) {
-            send(SendParameters{
-                to: sender(),
-                value: 0,
-                mode: SendRemainingBalance,
-                bounce: false
-            });
-        }
+        // send(SendParameters{
+        //     to: sender(),
+        //     value: 0,
+        //     mode: SendRemainingBalance + SendIgnoreErrors,
+        //     bounce: false
+        // });
     }
 
     // ============ Views ============
