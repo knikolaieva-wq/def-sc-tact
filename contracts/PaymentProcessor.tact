@@ -4,13 +4,12 @@
 // - Transfer with commission splitting and optional partner share
 // - Nonces + deadline checks (direct-call flow: buyer must send the message)
 
-// No stdlib import required for current Tact version
-
 // Minimal interface for an external NFT-like contract used for rewards
 // Exposes two interactions analogous to the Solidity example:
 // - getPlatformShareBpsForWallet(address) -> Int (0..10000)
 // - incrementSuccessfulTx(address)
 // Note: in TON, cross-contract reads are get-method calls, writes are internal messages.
+//import "@stdlib/stdlib.tact";  // или конкретные символы: rawReserve, SendMode.*, и т.п.
 
 struct PaymentRequest {
     buyer: Address;
@@ -51,7 +50,6 @@ contract PaymentProcessor {
         self.mainCommissionWallet = mainCommissionWallet;
         self.nftCollection = nftCollection;
         self.platformCommissionBps = 25; // 0.25%
-        // nonces already initialized by default
     }
 
     // 3) Добавим get-методы для фронта
@@ -81,7 +79,7 @@ contract PaymentProcessor {
         let to = w.to;
         let bal = myBalance();
         require(bal > 0, "empty");
-        send(SendParameters{ to: to, value: 0, mode: 128 });
+        send(SendParameters{ to: to, value: 0, mode: SendRemainingBalance });
     }
 
     // ============ Payment entry ============
@@ -101,35 +99,39 @@ contract PaymentProcessor {
 
         // Compute commissions
         let commission = (req.amount * self.platformCommissionBps) / 10000;
-        let totalPay = req.buyerPaysCommission ? (req.amount + commission) : req.amount;
+        let sellerValue = req.buyerPaysCommission ? req.amount : (req.amount - commission);
+        let commissionValue = commission > 0 ? commission : 0;
 
-        // Validate attached value
-        require(context().value >= totalPay, "insufficient value");
+        let FWD_PER_MSG: Int = 1_200_000; // 0.0012 TON — консервативно
+        let VM_RESERVE:  Int = 6_000_000; // 0.006 TON — с запасом
 
-        // Seller payout - отправляем режим 1 (обычная отправка с оплатой комиссий из пересылаемой суммы)
-        if (req.buyerPaysCommission) {
-            send(SendParameters{ 
-                to: req.seller, 
-                value: req.amount,
-                mode: 1,
-                bounce: true
-            });
-        } else {
-            send(SendParameters{ 
-                to: req.seller, 
-                value: req.amount - commission,
-                mode: 1,
-                bounce: true
-            });
-        }
+        // защищаем старые деньги, чтобы "остаток" был только из входящего
+        let prev = max(myBalance() - context().value, 0);
+        nativeReserve(prev, 0);
+
+        // проверяем, что входящего хватит на точные выплаты + фвд-фи ДВУХ обязательных сообщений + VM
+        let msgsCore: Int = 1; // продавцу
+        if (commissionValue > 0) { 
+            msgsCore += 1; 
+        } // платформе
+        let needed = sellerValue + commissionValue + VM_RESERVE + msgsCore * FWD_PER_MSG;
+        require(context().value >= needed, "insufficient value (fees)");
+
+        // Seller payout
+        send(SendParameters{ 
+            to: req.seller, 
+            value: sellerValue,
+            bounce: true,
+            mode: SendPayGasSeparately // чтобы не тратить резерв на форвард-фии продавцу
+        });
 
         // Platform commission - отправляем если есть
-        if (commission > 0) {
+        if (commissionValue > 0) {
             send(SendParameters{ 
                 to: self.mainCommissionWallet, 
-                value: commission,
-                mode: 1,
-                bounce: true
+                value: commissionValue,
+                bounce: true,
+                mode: SendPayGasSeparately // чтобы не тратить резерв на форвард-фии платформе
             });
         }
 
@@ -146,13 +148,13 @@ contract PaymentProcessor {
         //     }
         // }
 
-        // Возврат сдачи (если есть) - режим 64 (вернуть все оставшиеся средства)
-        let change = context().value - totalPay;
-        if (change > 0) {
-            send(SendParameters{ 
-                to: sender(), 
-                value: change,
-                mode: 0,
+        // Возврат сдачи автоматически отправляет весь оставшийся баланс (с учетом потраченного газа)
+        let spendableAfter = myBalance() - prev; // всё, что можно ещё потратить
+        if (spendableAfter > FWD_PER_MSG) {
+            send(SendParameters{
+                to: sender(),
+                value: 0,
+                mode: SendRemainingBalance,
                 bounce: false
             });
         }

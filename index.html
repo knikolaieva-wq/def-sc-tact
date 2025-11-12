@@ -6,6 +6,7 @@
     <title>Payment (TON) — Pay + Admin + Views</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="/config.js"></script>
     
     <!-- TON Core & TON Libraries via ESM -->
     <script type="module">
@@ -175,10 +176,14 @@
       const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
       const fromNano = (nano) => Number(nano) / 1e9;
       const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
+      const manifestUrlOverride = window.__TONCONNECT_MANIFEST_URL;
+      //manifestUrl: "https://knikolaieva-wq.github.io/tonconnect-manifest/tonconnect-manifest.json"
+
+      const manifestUrlFinal = manifestUrlOverride || manifestUrlResolved;
 
       // Убираем buttonRootId, чтобы не было конфликта
       const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ 
-        manifestUrl: manifestUrlResolved
+        manifestUrl: manifestUrlFinal
       });
 
       // ЗАХАРДКОЖЕНЫ все op-коды из TypeScript файла PaymentProcessor_PaymentProcessor.ts
@@ -439,7 +444,7 @@
 
         document.getElementById('connectDirectBtn').addEventListener('click', () => {
           const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-          const manifestUrl = encodeURIComponent(manifestUrlResolved);
+          const manifestUrl = encodeURIComponent(manifestUrlFinal);
           const testnetParam = isTestnet ? '&testnet=true' : '';
           console.log('Opening Tonkeeper directly with testnet:', isTestnet);
           window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
@@ -526,11 +531,11 @@
             ]);
             
             const commission = BigInt(res.stack.readNumber());
-            const totalPayFromContract = BigInt(res.stack.readNumber());
+            const totalPayFromContract = BigInt(res.stack.readNumber()) + commission;
             
             // ИСПРАВЛЕНО: добавляем фиксированный gas reserve (0.05 TON)
             // Контракт использует mode: 64 для последней отправки, но нужен запас для вычислений
-            const gasReserve = toNano('0.005');
+            const gasReserve = toNano('0.01'); // 0.005 TON
             totalPay = totalPayFromContract + gasReserve;
             
             logStatus(`Amount: ${fromNano(amount)} TON`);
@@ -567,7 +572,7 @@
               payload: payloadBase64
             }]
           };
-          
+
           console.log('Sending transaction:', {
             to,
             amount: totalPay.toString(),
@@ -739,7 +744,7 @@
         (async () => {
           const statusEl = document.getElementById('manifest-status');
           try {
-            const r = await fetch(manifestUrlResolved, { cache: 'no-store' });
+            const r = await fetch(manifestUrlFinal, { cache: 'no-store' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const j = await r.json();
             const origin = new URL(j.url, window.location.href).origin;
