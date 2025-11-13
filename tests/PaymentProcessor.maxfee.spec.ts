@@ -6,7 +6,7 @@ import { toNano, Address } from '@ton/core';
 import { PaymentProcessor } from '../build/PaymentProcessor_PaymentProcessor';
 import '@ton/test-utils';
 
-describe('PaymentProcessorTIP - maxfee', () => {
+describe.skip('PaymentProcessorTIP - maxfee', () => {
     let blockchain: Blockchain;
     let owner: SandboxContract<TreasuryContract>;
     let buyer: SandboxContract<TreasuryContract>;

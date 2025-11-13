@@ -6,7 +6,7 @@ import { toNano, Address } from '@ton/core';
 import { PaymentProcessor } from '../build/PaymentProcessor_PaymentProcessor';
 import '@ton/test-utils';
 
-describe('PaymentProcessorTIP - withdrawAll', () => {
+describe('PaymentProcessor - withdrawAll', () => {
   let blockchain: Blockchain;
   let owner: SandboxContract<TreasuryContract>;
   let stranger: SandboxContract<TreasuryContract>;
@@ -47,51 +47,55 @@ describe('PaymentProcessorTIP - withdrawAll', () => {
     );
   }
 
-  it('positive - owner can withdraw all balance', async () => {
-    // fund extra and check contract balance reduces to minimal reserve
-    await owner.send({ to: paymentProcessor.address, value: toNano('0.10'), bounce: false });
-    const before = await getAddressBalance(paymentProcessor.address);
+  describe('Positive', () => {
+    it('owner can withdraw all balance', async () => {
+      // fund extra and check contract balance reduces to minimal reserve
+      await owner.send({ to: paymentProcessor.address, value: toNano('0.10'), bounce: false });
+      const before = await getAddressBalance(paymentProcessor.address);
 
-    const res = await withdrawAll(owner, owner.address);
-    expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: false });
+      const res = await withdrawAll(owner, owner.address);
+      expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: false });
 
-    const after = await getAddressBalance(paymentProcessor.address);
-    expect(after).toBeLessThan(before);
-    // Contract must keep exactly minimal operational reserve (0.01 TON)
-    expect(after).toBe(MIN_KEEP);
+      const after = await getAddressBalance(paymentProcessor.address);
+      expect(after).toBeLessThan(before);
+      // Contract must keep exactly minimal operational reserve (0.01 TON)
+      expect(after).toBe(MIN_KEEP);
+    });
   });
 
-  it('negative - revert InvalidRecipentValidation (amount == 0)', async () => {
-    // For TON: zero address is syntactically valid; withdrawal executes and funds bounce back with fee burn.
-    // Expect: contract call not aborted; contract ends near minimal reserve.
-    await owner.send({ to: paymentProcessor.address, value: toNano('0.05'), bounce: false });
-    const res = await withdrawAll(owner, ZERO_ADDR);
-    expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: false });
-    const after = await getAddressBalance(paymentProcessor.address);
-    expect(after).toBeGreaterThanOrEqual(MIN_KEEP); // reserve stays at least minimal
-  });
+  describe('Negative', () => {
+    it('revert InvalidRecipentValidation (amount == 0)', async () => {
+      // For TON: zero address is syntactically valid; withdrawal executes and funds bounce back with fee burn.
+      // Expect: contract call not aborted; contract ends near minimal reserve.
+      await owner.send({ to: paymentProcessor.address, value: toNano('0.05'), bounce: false });
+      const res = await withdrawAll(owner, ZERO_ADDR);
+      expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: false });
+      const after = await getAddressBalance(paymentProcessor.address);
+      expect(after).toBeGreaterThanOrEqual(MIN_KEEP); // reserve stays at least minimal
+    });
 
-  it('negative - revert InvalidAmountValidation (owner zero balance)', async () => {
-    // Ensure contract at (about) minimal reserve; another withdraw should abort (below reserve)
-    const bal = await getAddressBalance(paymentProcessor.address);
-    if (bal > MIN_KEEP + 500_000n) {
-      await withdrawAll(owner, owner.address);
-    }
-    const before = await getAddressBalance(paymentProcessor.address);
-    const res = await withdrawAll(owner, owner.address, 0n);
-    expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
-    const after = await getAddressBalance(paymentProcessor.address);
-    expect(after).toBe(before);
-  });
+    it('revert InvalidAmountValidation (owner zero balance)', async () => {
+      // Ensure contract at (about) minimal reserve; another withdraw should abort (below reserve)
+      const bal = await getAddressBalance(paymentProcessor.address);
+      if (bal > MIN_KEEP + 500_000n) {
+        await withdrawAll(owner, owner.address);
+      }
+      const before = await getAddressBalance(paymentProcessor.address);
+      const res = await withdrawAll(owner, owner.address, 0n);
+      expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
+      const after = await getAddressBalance(paymentProcessor.address);
+      expect(after).toBe(before);
+    });
 
-  it('negative - revert OwnableUnauthorizedAccount (some stranger account)', async () => {
-    // Fund contract; stranger must not be able to withdraw
-    await owner.send({ to: paymentProcessor.address, value: toNano('0.05'), bounce: false });
+    it('revert OwnableUnauthorizedAccount (some stranger account)', async () => {
+      // Fund contract; stranger must not be able to withdraw
+      await owner.send({ to: paymentProcessor.address, value: toNano('0.05'), bounce: false });
 
-    const before = await getAddressBalance(paymentProcessor.address);
-    const res = await withdrawAll(stranger, owner.address);
-    expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
-    const after = await getAddressBalance(paymentProcessor.address);
-    expect(after).toBe(before);
+      const before = await getAddressBalance(paymentProcessor.address);
+      const res = await withdrawAll(stranger, owner.address);
+      expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
+      const after = await getAddressBalance(paymentProcessor.address);
+      expect(after).toBe(before);
+    });
   });
 });

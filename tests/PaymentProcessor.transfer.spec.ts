@@ -6,7 +6,7 @@ import { toNano, Address } from '@ton/core';
 import { PaymentProcessor } from '../build/PaymentProcessor_PaymentProcessor';
 import '@ton/test-utils';
 
-describe('PaymentProcessorTIP - transfer', () => {
+describe('PaymentProcessor - transfer', () => {
     let blockchain: Blockchain;
     let owner: SandboxContract<TreasuryContract>;
     let buyer: SandboxContract<TreasuryContract>;
@@ -72,7 +72,7 @@ describe('PaymentProcessorTIP - transfer', () => {
     };
 
     describe('Positive', () => {
-        it('positive (no optional wallet) - buyerPaysCommission=true, the seller gets the full amount, the platform gets the entire commission', async () => {
+        it('(no optional wallet) - buyerPaysCommission=true, the seller gets the full amount, the platform gets the entire commission', async () => {
             const amount = toNano('0.01');
             const commission = calcCommission(amount);
             const deadline = blockchain.now!! + 3600;
@@ -97,7 +97,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             approx(platformAfter - platformBefore, commission);
         });
 
-        // it('positive (with optional wallet) - buyerPaysCommission=true, mints NFT to optional wallet, the seller gets the full amount, then splits commission by rewardBps', async () => {
+        // it('(with optional wallet) - buyerPaysCommission=true, mints NFT to optional wallet, the seller gets the full amount, then splits commission by rewardBps', async () => {
         //     const amount = toNano('0.01');
         //     const commission = calcCommission(amount);
         //     const deadline = blockchain.now!! + 3600;
@@ -126,7 +126,7 @@ describe('PaymentProcessorTIP - transfer', () => {
         //     expect(optionalAfter - optionalBefore).toBe(0n);
         // });
 
-        // it('positive (with optional wallet) - buyerPaysCommission=false, mints NFT to optional wallet, the seller retention, then splits commission by rewardBps', async () => {
+        // it('(with optional wallet) - buyerPaysCommission=false, mints NFT to optional wallet, the seller retention, then splits commission by rewardBps', async () => {
         //     const amount = toNano('0.02');
         //     const commission = calcCommission(amount);
         //     const deadline = blockchain.now!! + 3600;
@@ -154,7 +154,7 @@ describe('PaymentProcessorTIP - transfer', () => {
         //     expect(optionalAfter - optionalBefore).toBe(0n);
         // });
 
-        it('positive (no optional wallet) - buyerPaysCommission=false, the seller retention, the platform gets the entire commission', async () => {
+        it('(no optional wallet) - buyerPaysCommission=false, the seller retention, the platform gets the entire commission', async () => {
             const amount = toNano('0.02');
             const commission = calcCommission(amount);
             const deadline = blockchain.now!! + 3600;
@@ -178,10 +178,8 @@ describe('PaymentProcessorTIP - transfer', () => {
             approx(sellerAfter - sellerBefore, amount - commission);
             approx(platformAfter - platformBefore, commission);
         });
-    });
 
-    describe('Nonce', () => {
-        it('positive (no optional wallet) - nonce increased', async () => {
+        it('(no optional wallet) - nonce increased', async () => {
             // Стартовый nonce считаем 0 для неактивного контракта (до первого вызова)
             const before = 0n;
             const amount = toNano('0.005');
@@ -200,8 +198,10 @@ describe('PaymentProcessorTIP - transfer', () => {
             const after = await paymentProcessor.getNonceOf(buyer.address);
             expect(after).toBe(before + 1n);
         });
+    });
 
-        it('negative - nonce not increased after transfer failed', async () => {
+    describe('Negative', () => {
+        it('nonce not increased after transfer failed', async () => {
             const before = 0n;
             const amount = toNano('0.01');
             const commission = calcCommission(amount);
@@ -224,10 +224,8 @@ describe('PaymentProcessorTIP - transfer', () => {
             const after = await paymentProcessor.getNonceOf(buyer.address);
             expect(after).toBe(before);
         });
-    });
 
-    describe('Negative', () => {
-        it('negative - revert InvalidAmountValidation (amount == 0)', async () => {
+        it('revert InvalidAmountValidation (amount == 0)', async () => {
             const deadline = blockchain.now!! + 3600;
             const res = await sendTransfer({
                 value: toNano('0.01'),
@@ -241,7 +239,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - revert InvalidSellerValidation (zero seller address)', async () => {
+        it('revert InvalidSellerValidation (zero seller address)', async () => {
             const deadline = blockchain.now!! + 3600;
             const res = await sendTransfer({
                 value: toNano('0.02'),
@@ -256,7 +254,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - revert InvalidSellerValidation (seller == buyer)', async () => {
+        it('revert InvalidSellerValidation (seller == buyer)', async () => {
             const deadline = blockchain.now!! + 3600;
             const res = await sendTransfer({
                 value: toNano('0.02'),
@@ -270,7 +268,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - amount with negative value throw an exception', async () => {
+        it('revert InvalidAmountValidation (amount with negative value)', async () => {
             const deadline = blockchain.now!! + 3600;
             const res = await sendTransfer({
                 value: toNano('0.02'),
@@ -285,7 +283,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - amount with "Test" value throw an exception', async () => {
+        it('revert InvalidAmountValidation (amount with "Test" value throw an exception)', async () => {
             const deadline = blockchain.now!! + 3600;
             // Bypass typing to simulate invalid input value
             let threw = false;
@@ -311,7 +309,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(threw).toBeTruthy();
         });
 
-        it('negative - revert SignatureExpired (deadline at 10 seconds in past time)', async () => {
+        it('revert SignatureExpired (deadline at 10 seconds in past time)', async () => {
             const res = await sendTransfer({
                 value: toNano('0.02'),
                 buyerPaysCommission: true,
@@ -324,7 +322,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - revert InvalidTotalAmountValidation (total pay less than amount + commission)', async () => {
+        it('revert InvalidTotalAmountValidation (total pay less than amount + commission)', async () => {
             const amount = toNano('0.02');
             const commission = calcCommission(amount);
             const res = await sendTransfer({
@@ -339,7 +337,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - revert InvalidSignature (signed with different buyer)', async () => {
+        it('revert InvalidSignature (signed with different buyer)', async () => {
             const amount = toNano('0.01');
             const deadline = blockchain.now!! + 3600;
 
@@ -363,7 +361,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - revert InvalidSignature (executed with different buyer)', async () => {
+        it('revert InvalidSignature (executed with different buyer)', async () => {
             const amount = toNano('0.01');
             const deadline = blockchain.now!! + 3600;
             const stranger = await blockchain.treasury('stranger2');
@@ -386,7 +384,7 @@ describe('PaymentProcessorTIP - transfer', () => {
             expect(res.transactions).toHaveTransaction({ to: paymentProcessor.address, aborted: true });
         });
 
-        it('negative - tamper → InvalidSignature, after success, after replay → InvalidSignature', async () => {
+        it('revert InvalidSignature (tamper → InvalidSignature, after success, after replay → InvalidSignature)', async () => {
             const amount = toNano('0.01');
             const deadline = blockchain.now!! + 3600;
 
