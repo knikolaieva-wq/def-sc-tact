@@ -2,11 +2,11 @@
 
 import { Blockchain, TreasuryContract, printTransactionFees } from '@ton/sandbox';
 import type { SandboxContract } from '@ton/sandbox';
-import { toNano, Address, beginCell } from '@ton/core';
+import { toNano, Address } from '@ton/core';
 import { PaymentProcessor } from '../build/PaymentProcessor_PaymentProcessor';
 import '@ton/test-utils';
 
-describe('PaymentProcessor - Max Fee Test', () => {
+describe('PaymentProcessorTIP - maxfee', () => {
     let blockchain: Blockchain;
     let owner: SandboxContract<TreasuryContract>;
     let buyer: SandboxContract<TreasuryContract>;
@@ -42,59 +42,55 @@ describe('PaymentProcessor - Max Fee Test', () => {
         // Убираем проверку deploy - контракт активируется автоматически
     });
 
-    // Функция для построения Transfer message
-    function buildTransferMessage(params: {
+    // Helpers: get contract balance and balance guard (should not drop)
+    async function getAddressBalance(addr: Address) {
+        return (await blockchain.getContract(addr)).balance;
+    }
+    const notBelow = (got: bigint, baseline: bigint, tol: bigint = 5_000_000n) => {
+        expect(got).toBeGreaterThanOrEqual(baseline - tol);
+    };
+
+    // Отправка сообщения через Tact-обёртку, без ручной сериализации
+    async function sendTransfer(args: {
+        value: bigint;
+        buyerPaysCommission: boolean;
+        amount: bigint;
         buyer: Address;
         seller: Address;
-        amount: bigint;
-        buyerPaysCommission: boolean;
         optionalCommissionWallet?: Address | null;
         deadline: number;
     }) {
-        const opTransfer = 0x42c20f7a; // из TypeScript wrapper
-
-        const reqCell = beginCell()
-            .storeAddress(params.buyer)
-            .storeAddress(params.seller)
-            .storeInt(params.amount, 257)
-            .storeBit(params.buyerPaysCommission)
-            .endCell();
-
-        const optCell = beginCell()
-            .storeAddress(params.optionalCommissionWallet || null)
-            .endCell();
-
-        const deadlineCell = beginCell()
-            .storeInt(params.deadline, 257)
-            .endCell();
-
-        return beginCell()
-            .storeUint(opTransfer, 32)
-            .storeRef(reqCell)
-            .storeRef(optCell)
-            .storeRef(deadlineCell)
-            .endCell();
+        return paymentProcessor.send(
+            buyer.getSender(),
+            { value: args.value, bounce: true },
+            {
+                $$type: 'Transfer',
+                req: {
+                    buyer: args.buyer,
+                    seller: args.seller,
+                    amount: args.amount,
+                    buyerPaysCommission: args.buyerPaysCommission,
+                    optionalCommissionWallet: args.optionalCommissionWallet ?? null,
+                },
+                deadline: BigInt(args.deadline),
+            } as any
+        );
     }
 
     describe('Max Fee Scenarios', () => {
         it('should calculate max fee for small amount (buyer pays)', async () => {
             const amount = toNano('0.01');
             const deadline = blockchain.now!! + 3600;
+            const contractBefore = await getAddressBalance(paymentProcessor.address);
 
-            const body = buildTransferMessage({
+            const result = await sendTransfer({
+                value: toNano('0.05'),
+                buyerPaysCommission: true,
+                amount,
                 buyer: buyer.address,
                 seller: seller.address,
-                amount,
-                buyerPaysCommission: true,
                 optionalCommissionWallet: null,
                 deadline
-            });
-
-            const result = await buyer.send({
-                to: paymentProcessor.address,
-                value: toNano('0.05'), // 0.01 + комиссия + gas reserve
-                bounce: true,
-                body
             });
 
             console.log('\n=== Small Amount (Buyer Pays) ===');
@@ -109,26 +105,23 @@ describe('PaymentProcessor - Max Fee Test', () => {
 
             // УБРАНО: проверка success - нас интересуют только комиссии
             expect(totalFees).toBeLessThan(toNano('0.02')); // < 0.02 TON
+            const contractAfter = await getAddressBalance(paymentProcessor.address);
+            notBelow(contractAfter, contractBefore);
         });
 
         it('should calculate max fee for small amount (seller pays)', async () => {
             const amount = toNano('0.01');
             const deadline = blockchain.now!! + 3600;
+            const contractBefore = await getAddressBalance(paymentProcessor.address);
 
-            const body = buildTransferMessage({
+            const result = await sendTransfer({
+                value: toNano('0.05'),
+                buyerPaysCommission: false,
+                amount,
                 buyer: buyer.address,
                 seller: seller.address,
-                amount,
-                buyerPaysCommission: false,
                 optionalCommissionWallet: null,
                 deadline
-            });
-
-            const result = await buyer.send({
-                to: paymentProcessor.address,
-                value: toNano('0.05'),
-                bounce: true,
-                body
             });
 
             console.log('\n=== Small Amount (Seller Pays) ===');
@@ -143,26 +136,23 @@ describe('PaymentProcessor - Max Fee Test', () => {
             
             // УБРАНО: проверка success
             expect(totalFees).toBeLessThan(toNano('0.02')); // < 0.02 TON
+            const contractAfter = await getAddressBalance(paymentProcessor.address);
+            notBelow(contractAfter, contractBefore);
         });
 
         it('should calculate max fee with partner wallet', async () => {
             const amount = toNano('0.01');
             const deadline = blockchain.now!! + 3600;
+            const contractBefore = await getAddressBalance(paymentProcessor.address);
 
-            const body = buildTransferMessage({
+            const result = await sendTransfer({
+                value: toNano('0.06'),
+                buyerPaysCommission: true,
+                amount,
                 buyer: buyer.address,
                 seller: seller.address,
-                amount,
-                buyerPaysCommission: true,
                 optionalCommissionWallet: partner.address,
                 deadline
-            });
-
-            const result = await buyer.send({
-                to: paymentProcessor.address,
-                value: toNano('0.06'), // больше для 3 отправок
-                bounce: true,
-                body
             });
 
             console.log('\n=== With Partner Wallet ===');
@@ -177,26 +167,23 @@ describe('PaymentProcessor - Max Fee Test', () => {
 
             // УБРАНО: проверка success
             expect(totalFees).toBeLessThan(toNano('0.03'));
+            const contractAfter = await getAddressBalance(paymentProcessor.address);
+            notBelow(contractAfter, contractBefore);
         });
 
         it('should calculate max fee for large amount', async () => {
             const amount = toNano('100');
             const deadline = blockchain.now!! + 3600;
+            const contractBefore = await getAddressBalance(paymentProcessor.address);
 
-            const body = buildTransferMessage({
+            const result = await sendTransfer({
+                value: toNano('100.5'),
+                buyerPaysCommission: true,
+                amount,
                 buyer: buyer.address,
                 seller: seller.address,
-                amount,
-                buyerPaysCommission: true,
                 optionalCommissionWallet: null,
                 deadline
-            });
-
-            const result = await buyer.send({
-                to: paymentProcessor.address,
-                value: toNano('100.5'), // 100 + комиссия + gas
-                bounce: true,
-                body
             });
 
             console.log('\n=== Large Amount (100 TON) ===');
@@ -211,26 +198,23 @@ describe('PaymentProcessor - Max Fee Test', () => {
 
             // УБРАНО: проверка success
             expect(totalFees).toBeLessThan(toNano('0.05'));
+            const contractAfter = await getAddressBalance(paymentProcessor.address);
+            notBelow(contractAfter, contractBefore);
         });
 
         it('WORST CASE: complex scenario', async () => {
             const amount = toNano('0.001');
             const deadline = blockchain.now!! + 3600;
+            const contractBefore = await getAddressBalance(paymentProcessor.address);
 
-            const body = buildTransferMessage({
+            const result = await sendTransfer({
+                value: toNano('0.1'),
+                buyerPaysCommission: true,
+                amount,
                 buyer: buyer.address,
                 seller: seller.address,
-                amount,
-                buyerPaysCommission: true,
                 optionalCommissionWallet: partner.address,
                 deadline
-            });
-
-            const result = await buyer.send({
-                to: paymentProcessor.address,
-                value: toNano('0.1'), // большой запас
-                bounce: true,
-                body
             });
 
             console.log('\n=== WORST CASE ===');
@@ -247,6 +231,8 @@ describe('PaymentProcessor - Max Fee Test', () => {
 
             // УБРАНО: проверка success - нас интересует только MAX FEE
             expect(totalFees).toBeLessThan(toNano('0.05'));
+            const contractAfter = await getAddressBalance(paymentProcessor.address);
+            notBelow(contractAfter, contractBefore);
         });
     });
 });
