@@ -252,6 +252,37 @@
           <button id="incrementBtn"
             class="self-end px-4 py-2 rounded-xl border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white disabled:opacity-50">IncrementSuccessfulTx</button>
         </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="font-semibold">TEP-62 collection data</div>
+              <button id="readCollectionBtn"
+                class="px-3 py-1.5 rounded-xl border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white text-sm">Обновить</button>
+            </div>
+            <pre id="collectionDataOut" class="text-sm text-gray-700 whitespace-pre-wrap break-all">—</pre>
+          </div>
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50 space-y-3">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Индекс NFT</span>
+              <input id="nftIndexLookup" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="0" />
+            </label>
+            <div class="flex flex-wrap gap-3">
+              <button id="nftIndexBtn"
+                class="px-4 py-2 rounded-xl border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white">Адрес NFT</button>
+              <button id="nftDataBtn"
+                class="px-4 py-2 rounded-xl border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white">get_nft_data</button>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wide text-gray-500">NFT address</div>
+              <div id="nftAddressOut" class="text-sm break-all text-gray-800">—</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wide text-gray-500">NFT data</div>
+              <pre id="nftDataOut" class="text-xs bg-white rounded-xl border border-gray-200 p-3 break-all">—</pre>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="space-y-4">
@@ -314,8 +345,11 @@
         <div id="resMeta" class="text-sm break-all text-gray-700">—</div>
       </div>
       <div class="p-4 rounded-2xl border bg-white">
-        <div class="font-semibold mb-1">Последний токен</div>
+        <div class="font-semibold mb-1">Последний NFT (index / address)</div>
+        <div class="text-xs text-gray-500">Index</div>
         <div id="resToken" class="text-sm text-gray-700">—</div>
+        <div class="text-xs text-gray-500 mt-3">Item address</div>
+        <div id="resTokenAddress" class="text-sm text-gray-700 break-all">—</div>
       </div>
     </section>
 
@@ -369,6 +403,28 @@
     };
     const showStatus = (msg) => $('status').textContent = msg || '';
 
+    const decodeCommentCell = (cell) => {
+      try {
+        const slice = cell.beginParse();
+        const tag = slice.loadUint(32);
+        if (tag === 0) {
+          return slice.loadStringTail();
+        }
+      } catch {}
+      return cell ? cell.toString() : '';
+    };
+
+    const cellToAddressString = (cell) => {
+      try {
+        const parsed = cell.beginParse().loadAddress();
+        return parsed ? parsed.toString({ bounceable: false }) : '';
+      } catch {
+        return '';
+      }
+    };
+
+    const stackInt = (value) => ({ type: 'int', value: BigInt(value) });
+
     function updateStepUI() {
       setDot(1, step > 1 ? 'done' : 'active');
       setDot(2, step === 2 ? 'active' : step > 2 ? 'done' : 'default');
@@ -399,7 +455,8 @@
       'processorAddr',
       'incrementWallet',
       'walletLookup',
-      'ownerOfTokenId'
+      'ownerOfTokenId',
+      'nftIndexLookup'
     ];
     const CHECKBOX_FIELDS = ['httpImage', 'processorAllowed'];
 
@@ -603,6 +660,75 @@
       return Math.round(p * 100);
     }
 
+    async function readCollectionData() {
+      const addr = $('contractAddress').value.trim();
+      if (!addr) throw new Error('Введите адрес контракта');
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(window.TonRpc.TonAddress.parse(addr), 'get_collection_data', []);
+      const nextIndex = res.stack.readNumber();
+      const contentCell = res.stack.readCell();
+      const ownerAddr = res.stack.readAddress();
+      const ownerStr = ownerAddr.toString({ bounceable: false });
+      const contentText = decodeCommentCell(contentCell);
+      collectionDataOut.textContent = `nextIndex: ${nextIndex}\nowner: ${ownerStr}\ncontent: ${contentText}`;
+    }
+
+    async function fetchNftAddressByIndex(contractAddr, index) {
+      const client = await rpcClientForCurrentNet();
+      const idx = BigInt(index);
+      const res = await client.runMethod(
+        window.TonRpc.TonAddress.parse(contractAddr),
+        'get_nft_address_by_index',
+        [stackInt(idx)]
+      );
+      const addr = res.stack.readAddress();
+      return addr.toString({ bounceable: false });
+    }
+
+    async function readNftAddressOnly() {
+      const contractAddr = $('contractAddress').value.trim();
+      if (!contractAddr) throw new Error('Введите адрес контракта');
+      const raw = (nftIndexLookupEl.value || '').trim();
+      if (raw === '') throw new Error('Введите индекс');
+      const index = Number(raw);
+      if (!Number.isFinite(index) || index < 0) throw new Error('Некорректный индекс');
+      const nftAddr = await fetchNftAddressByIndex(contractAddr, index);
+      nftAddressOut.textContent = nftAddr;
+      $('resToken').textContent = String(index);
+      resTokenAddressEl.textContent = nftAddr;
+      return { index, nftAddr };
+    }
+
+    async function readNftDataByIndex() {
+      const { index, nftAddr } = await readNftAddressOnly();
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(window.TonRpc.TonAddress.parse(nftAddr), 'get_nft_data', []);
+      const initFlag = res.stack.readNumber();
+      const idx = res.stack.readNumber();
+      const collectionCell = res.stack.readCell();
+      const ownerCell = res.stack.readCell();
+      const contentCell = res.stack.readCell();
+      const collectionAddr = cellToAddressString(collectionCell);
+      const ownerAddr = cellToAddressString(ownerCell);
+      const contentText = decodeCommentCell(contentCell);
+      nftDataOut.textContent = JSON.stringify(
+        { init: initFlag, index: idx, collection: collectionAddr, owner: ownerAddr, content: contentText },
+        null,
+        2
+      );
+      return { index, nftAddr };
+    }
+
+    async function getTokenIndex(contractAddr, walletAddr) {
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(
+        window.TonRpc.TonAddress.parse(contractAddr),
+        'tokenOf',
+        [stackAddress(walletAddr)]
+      );
+      return res.stack.readNumber();
+    }
+
     function resetMetadataUI() {
       $('imageEmpty').classList.remove('hidden');
       $('imagePreviewWrap').classList.add('hidden');
@@ -652,6 +778,18 @@
         saveFormData();
       });
 
+      readCollectionBtn?.addEventListener('click', () => {
+        readCollectionData().catch((e) => showStatus('get_collection_data error: ' + (e?.message || e)));
+      });
+
+      nftIndexBtn?.addEventListener('click', () => {
+        readNftAddressOnly().catch((e) => showStatus('get_nft_address error: ' + (e?.message || e)));
+      });
+
+      nftDataBtn?.addEventListener('click', () => {
+        readNftDataByIndex().catch((e) => showStatus('get_nft_data error: ' + (e?.message || e)));
+      });
+
       $('mintUri').addEventListener('input', () => {
         const hasValue = Boolean($('mintUri').value.trim());
         if (hasValue && step < 3 && !metaCid) step = 3;
@@ -659,6 +797,11 @@
         updateStepUI();
       });
 
+      const collectionDataOut = $('collectionDataOut');
+      const nftIndexLookupEl = $('nftIndexLookup');
+      const nftAddressOut = $('nftAddressOut');
+      const nftDataOut = $('nftDataOut');
+      const resTokenAddressEl = $('resTokenAddress');
       const dropZone = $('dropZone');
       dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-black', 'bg-black/5'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-black', 'bg-black/5'));
@@ -668,6 +811,10 @@
         const f = e.dataTransfer.files?.[0];
         if (f) setImageFile(f);
       });
+      const readCollectionBtn = $('readCollectionBtn');
+      const nftIndexBtn = $('nftIndexBtn');
+      const nftDataBtn = $('nftDataBtn');
+
       $('imageInput').addEventListener('change', (e) => {
         const f = e.target.files?.[0];
         if (f) setImageFile(f);
@@ -824,7 +971,30 @@
           showStatus('Минт отправлен. Дождитесь подтверждения в Tonkeeper.');
           step = 4;
           updateStepUI();
-          $('resToken').textContent = `mint → ${toAddress}`;
+          let mintedIndex = null;
+          let mintedAddress = '';
+          try {
+            mintedIndex = await getTokenIndex(contractAddress, toAddress);
+          } catch (err) {
+            console.warn('tokenOf lookup failed', err);
+          }
+          if (mintedIndex !== null && mintedIndex >= 0) {
+            try {
+              mintedAddress = await fetchNftAddressByIndex(contractAddress, mintedIndex);
+            } catch (err) {
+              console.warn('get_nft_address_by_index failed', err);
+            }
+          }
+          $('resToken').textContent = mintedIndex !== null ? String(mintedIndex) : '—';
+          resTokenAddressEl.textContent = mintedAddress || '—';
+          if (mintedAddress) {
+            nftAddressOut.textContent = mintedAddress;
+          }
+          if (mintedIndex !== null && mintedIndex >= 0) {
+            nftIndexLookupEl.value = String(mintedIndex);
+            saveFormData();
+          }
+          readCollectionData().catch(() => {});
           await readWalletState(toAddress).catch(() => {});
         } catch (e) {
           console.error(e);
@@ -984,7 +1154,12 @@
         $('whitelistOut').textContent = '—';
         $('successOut').textContent = '—';
         $('ownerOfOut').textContent = '—';
+        collectionDataOut.textContent = '—';
+        nftAddressOut.textContent = '—';
+        nftDataOut.textContent = '—';
+        resTokenAddressEl.textContent = '—';
         resetMetadataUI();
+        saveFormData();
       });
 
       $('results').classList.add('hidden');

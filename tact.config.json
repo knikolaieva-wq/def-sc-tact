@@ -7,8 +7,14 @@
       "bindings": "js"
     },
     {
-      "name": "DefNFT",
-      "path": "contracts/DefNFT.tact",
+      "name": "PartnerNftCollection",
+      "path": "contracts/PartnerNftCollection.tact",
+      "output": "build/nft",
+      "bindings": "js"
+    },
+    {
+      "name": "PartnerNftItem",
+      "path": "contracts/PartnerNftItem.tact",
       "output": "build/nft",
       "bindings": "js"
     }
