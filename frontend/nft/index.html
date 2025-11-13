@@ -650,7 +650,7 @@
 
     function validateTokenId(value) {
       const n = BigInt(value || '0');
-      if (n <= 0n) throw new Error('tokenId > 0');
+      if (n < 0n) throw new Error('tokenId > 0');
       return n;
     }
 
@@ -778,6 +778,16 @@
         saveFormData();
       });
 
+      const collectionDataOut = $('collectionDataOut');
+      const nftIndexLookupEl = $('nftIndexLookup');
+      const nftAddressOut = $('nftAddressOut');
+      const nftDataOut = $('nftDataOut');
+      const resTokenAddressEl = $('resTokenAddress');
+      const dropZone = $('dropZone');
+      const readCollectionBtn = $('readCollectionBtn');
+      const nftIndexBtn = $('nftIndexBtn');
+      const nftDataBtn = $('nftDataBtn');
+
       readCollectionBtn?.addEventListener('click', () => {
         readCollectionData().catch((e) => showStatus('get_collection_data error: ' + (e?.message || e)));
       });
@@ -797,12 +807,6 @@
         updateStepUI();
       });
 
-      const collectionDataOut = $('collectionDataOut');
-      const nftIndexLookupEl = $('nftIndexLookup');
-      const nftAddressOut = $('nftAddressOut');
-      const nftDataOut = $('nftDataOut');
-      const resTokenAddressEl = $('resTokenAddress');
-      const dropZone = $('dropZone');
       dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-black', 'bg-black/5'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-black', 'bg-black/5'));
       dropZone.addEventListener('drop', (e) => {
@@ -811,9 +815,6 @@
         const f = e.dataTransfer.files?.[0];
         if (f) setImageFile(f);
       });
-      const readCollectionBtn = $('readCollectionBtn');
-      const nftIndexBtn = $('nftIndexBtn');
-      const nftDataBtn = $('nftDataBtn');
 
       $('imageInput').addEventListener('change', (e) => {
         const f = e.target.files?.[0];

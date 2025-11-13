@@ -90,13 +90,11 @@ contract PartnerNftCollection with Deployable {
     // Mint 1 NFT per address (TEP-62 style)
     receive(msg: Mint) {
         self.onlyOwner();
-        require(msg.shareBps >= 0 && msg.shareBps <= 10000, "SHARE_TOO_HIGH");
-        require(msg.uri != "", "EMPTY_URI");
-
         // инвариант: 1 токен на адрес
         let existingOpt = self.walletIndex.get(msg.to);
-        let existing = existingOpt != null ? existingOpt!! : 0;
-        require(existing == 0, "OWNER_ALREADY_HAS_TOKEN");
+        require(existingOpt == null, "OWNER_ALREADY_HAS_TOKEN");
+        require(msg.shareBps >= 0 && msg.shareBps <= 10000, "SHARE_TOO_HIGH");
+        require(msg.uri != "", "EMPTY_URI");
 
         // индекс в коллекции по TEP-62
         let index = self.nextItemIndex;
@@ -228,7 +226,7 @@ contract PartnerNftCollection with Deployable {
     get fun successfulTxCountOf(wallet: Address): Int {
         let idxOpt = self.walletIndex.get(wallet);
         let idx = idxOpt != null ? idxOpt!! : 0;
-        if (idx == 0) {
+        if (idxOpt == null) {
             return 0;
         }
         let countOpt = self.successfulTxCount.get(idx);
@@ -238,16 +236,15 @@ contract PartnerNftCollection with Deployable {
     // tokenOf(owner)
     get fun tokenOf(owner: Address): Int {
         let idxOpt = self.walletIndex.get(owner);
-        return idxOpt != null ? idxOpt!! : 0;
-    }
+        return idxOpt != null ? idxOpt!! : -1;
+    }   
 
     // isWalletWhitelisted(wallet)
     get fun isWalletWhitelisted(wallet: Address): Bool {
         let inListOpt = self.walletWhitelist.get(wallet);
         let inList = inListOpt != null ? inListOpt!! : false;
-        let idxOpt = self.walletIndex.get(wallet);
-        let idx = idxOpt != null ? idxOpt!! : 0;
-        return inList && idx != 0;
+        let hasToken = self.walletIndex.get(wallet) != null;
+        return inList && hasToken;
     }
 
     // getPlatformShareBpsForWallet(wallet)
@@ -258,10 +255,10 @@ contract PartnerNftCollection with Deployable {
             return 0;
         }
         let idxOpt = self.walletIndex.get(wallet);
-        let idx = idxOpt != null ? idxOpt!! : 0;
-        if (idx == 0) {
+        if (idxOpt == null) {
             return 0;
         }
+        let idx = idxOpt!!;
         let shareOpt = self.tokenShareBps.get(idx);
         return shareOpt != null ? shareOpt!! : 0;
     }
