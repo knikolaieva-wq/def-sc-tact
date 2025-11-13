@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build:contract": "tact -c tact.config.json",
-    "deploy:testnet": "node scripts/deploy.mjs --network testnet",
+    "deploy:transfer:testnet": "node scripts/transfer/deploy.mjs --network testnet",
+    "deploy:nft:testnet": "node scripts/nft/deploy.mjs --network testnet",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "dev": "node scripts/dev-server.mjs"
   },

@@ -74,8 +74,7 @@
         <span class="text-sm font-medium">Pinata JWT (для тестов; в продакшне не храните в браузере)</span>
         <input id="pinataJwt" type="password"
           class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10"
-          placeholder="eyJhbGciOi..."
-          value=""
+          placeholder="eyJhbGciOi..." value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI1ZDNhZTBjNC03OWI1LTRkMjMtOThiYS1lZTlkNDg4ODY5NDIiLCJlbWFpbCI6InMuYm9yaXNvdkBhZHYyLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiI1NGI1MjViMzJjYjE4NTdiOTNlNiIsInNjb3BlZEtleVNlY3JldCI6ImIwYzQ1OGVkNzI1ZTcwMzA4YjE4NzMwMmJjNTBlNzgwYWI1MjNlYmRkZmYzNGI1MjFmODkwZjY0MDg3OTBhNjkiLCJleHAiOjE3OTAyMzY0MTh9.gHgWwNWzUKBgMoWipKkStlraLXhgB6lSntiFaR_VViM"
         />
       </label>
       <p class="text-xs text-gray-500">JWT используется для вызовов pinFileToIPFS и pinJSONToIPFS из браузера.</p>
@@ -208,8 +207,8 @@
               class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">URI (заполняется из Pinata)</span>
-            <input id="mintUri" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="ipfs://..." readonly />
+            <span class="text-sm font-medium">URI (из Pinata или вручную)</span>
+            <input id="mintUri" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="ipfs://..." />
           </label>
         </div>
 
@@ -379,9 +378,127 @@
       $('uploadBtn').classList.toggle('hidden', step < 2);
       $('toMetaBtn').classList.toggle('hidden', step >= 2);
 
-      $('mintUri').value = metaCid ? `ipfs://${metaCid}` : '';
-      $('mintBtn').disabled = !metaCid || !tonConnectUI.wallet;
+      const hasUri = Boolean(metaCid || $('mintUri').value.trim());
+      $('mintBtn').disabled = !hasUri || !tonConnectUI.wallet;
     }
+
+    const STORAGE_KEY = 'defnft_form_data_v1';
+    const TEXT_FIELDS = [
+      'pinataJwt',
+      'name',
+      'description',
+      'partnerName',
+      'rewardPercent',
+      'grade',
+      'contractAddress',
+      'mintTo',
+      'mintReward',
+      'mintUri',
+      'burnTokenId',
+      'whitelistAddr',
+      'processorAddr',
+      'incrementWallet',
+      'walletLookup',
+      'ownerOfTokenId'
+    ];
+    const CHECKBOX_FIELDS = ['httpImage', 'processorAllowed'];
+
+    function saveFormData() {
+      try {
+        const data = {};
+        TEXT_FIELDS.forEach((id) => {
+          const el = $(id);
+          if (el) data[id] = el.value;
+        });
+        CHECKBOX_FIELDS.forEach((id) => {
+          const el = $(id);
+          if (el) data[id] = el.checked;
+        });
+        const networkEl = $('tonNetwork');
+        if (networkEl) data.tonNetwork = networkEl.value;
+        data.metaCid = metaCid;
+        data.imageCid = imageCid;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (err) {
+        console.warn('saveFormData error', err);
+      }
+    }
+
+    function loadFormData() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return;
+        const data = JSON.parse(saved);
+        TEXT_FIELDS.forEach((id) => {
+          if (Object.prototype.hasOwnProperty.call(data, id)) {
+            const el = $(id);
+            if (el && typeof data[id] === 'string') el.value = data[id];
+          }
+        });
+        CHECKBOX_FIELDS.forEach((id) => {
+          if (Object.prototype.hasOwnProperty.call(data, id)) {
+            const el = $(id);
+            if (el) el.checked = !!data[id];
+          }
+        });
+        if (typeof data.tonNetwork === 'string') {
+          $('tonNetwork').value = data.tonNetwork;
+          $('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+        }
+        if (typeof data.imageCid === 'string') {
+          imageCid = data.imageCid;
+          if (imageCid) {
+            $('imageCidBox').classList.remove('hidden');
+            $('imageCid').textContent = (imageCid.startsWith('ipfs://') ? imageCid : `ipfs://${imageCid}`);
+            $('imageGateway').href = `https://ipfs.io/ipfs/${imageCid.replace('ipfs://', '')}`;
+            $('resImage').textContent = imageCid.replace('ipfs://', '');
+          }
+        }
+        if (typeof data.metaCid === 'string') {
+          metaCid = data.metaCid;
+          if (metaCid) {
+            $('metaCidBox').classList.remove('hidden');
+            $('metaCid').textContent = metaCid.startsWith('ipfs://') ? metaCid : `ipfs://${metaCid}`;
+            $('metaGateway').href = `https://ipfs.io/ipfs/${metaCid.replace('ipfs://', '')}`;
+            $('resMeta').textContent = metaCid.replace('ipfs://', '');
+            if (!$('mintUri').value) {
+              $('mintUri').value = metaCid.startsWith('ipfs://') ? metaCid : `ipfs://${metaCid}`;
+            }
+            if (step < 3) step = 3;
+          }
+        }
+        if (imageCid || metaCid) {
+          $('results').classList.remove('hidden');
+        }
+      } catch (err) {
+        console.error('loadFormData error', err);
+      }
+      updateStepUI();
+    }
+
+    function attachAutoSave() {
+      const inputs = [...TEXT_FIELDS, 'tonNetwork'];
+      inputs.forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener('input', saveFormData);
+        el.addEventListener('change', saveFormData);
+      });
+      CHECKBOX_FIELDS.forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener('change', saveFormData);
+      });
+    }
+
+    function clearFormData() {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {}
+    }
+
+    loadFormData();
+    attachAutoSave();
 
     function waitForLibs() {
       return new Promise((resolve) => {
@@ -410,7 +527,8 @@
         const friendly = formatTonAddress(wallet.account.address);
         $('wallet-info').textContent = `${friendly.slice(0, 6)}…${friendly.slice(-4)}`;
         $('connectBtn').textContent = 'Подключено';
-        $('mintBtn').disabled = !metaCid;
+        const hasUri = Boolean(metaCid || $('mintUri').value.trim());
+        $('mintBtn').disabled = !hasUri;
       } else {
         $('wallet-info').textContent = '';
         $('connectBtn').textContent = 'Подключить Tonkeeper';
@@ -430,7 +548,7 @@
       const { beginCell } = window.TonCore;
       const cell = beginCell();
       cell.storeUint(op, 32);
-      cell.storeUint(0, 64);
+      //cell.storeUint(0, 64);
       builderFn?.(cell);
       return cell.endCell();
     }
@@ -531,6 +649,14 @@
 
       $('tonNetwork').addEventListener('change', (e) => {
         $('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+        saveFormData();
+      });
+
+      $('mintUri').addEventListener('input', () => {
+        const hasValue = Boolean($('mintUri').value.trim());
+        if (hasValue && step < 3 && !metaCid) step = 3;
+        if (!hasValue && !metaCid && step > 2 && step < 4) step = 2;
+        updateStepUI();
       });
 
       const dropZone = $('dropZone');
@@ -546,7 +672,10 @@
         const f = e.target.files?.[0];
         if (f) setImageFile(f);
       });
-      $('replaceBtn').addEventListener('click', resetMetadataUI);
+      $('replaceBtn').addEventListener('click', () => {
+        resetMetadataUI();
+        saveFormData();
+      });
 
       function setImageFile(file) {
         imageFile = file;
@@ -632,6 +761,7 @@
           $('imageCid').textContent = 'ipfs://' + imageCid;
           $('imageGateway').href = 'https://ipfs.io/ipfs/' + imageCid;
           $('resImage').textContent = imageCid;
+          saveFormData();
 
           const useHttp = $('httpImage').checked;
           const imageField = useHttp ? ('https://ipfs.io/ipfs/' + imageCid) : ('ipfs://' + imageCid);
@@ -654,9 +784,11 @@
           $('metaGateway').href = 'https://ipfs.io/ipfs/' + metaCid;
           $('resMeta').textContent = metaCid;
           $('mintUri').value = 'ipfs://' + metaCid;
+          saveFormData();
 
           step = 3;
           updateStepUI();
+          saveFormData();
           showStatus('Готово. Теперь можно минтить.');
         } catch (e) {
           console.error(e);
@@ -672,11 +804,11 @@
         $('contractErr').classList.add('hidden');
         $('mintToErr').classList.add('hidden');
         try {
-          if (!metaCid) throw new Error('Сначала загрузите метадату');
+          if (!uri) throw new Error('Введите URI (например, ipfs://...) или загрузите метадату');
           validateAddress(contractAddress, $('contractErr'));
           validateAddress(toAddress, $('mintToErr'));
           const shareBps = calcShareBps(rewardPercent);
-          if (!uri) throw new Error('URI пуст');
+          console.log('Mint to', toAddress, 'with shareBps', shareBps);
           const { Address, beginCell } = window.TonCore;
           const body = buildOp(OPS.mint, (b) => {
             b.storeAddress(Address.parse(toAddress));
@@ -685,6 +817,8 @@
             ref.storeStringTail(uri);
             b.storeRef(ref.endCell());
           });
+          console.log('shareBps', BigInt(shareBps));
+          console.log('Mint body', body.toBoc().toString('base64'));
           showStatus('Отправляем mint…');
           await sendMessage(contractAddress, body, toNano('0.25'));
           showStatus('Минт отправлен. Дождитесь подтверждения в Tonkeeper.');
@@ -824,14 +958,26 @@
       });
 
       $('resetBtn').addEventListener('click', () => {
+        clearFormData();
+        $('pinataJwt').value = '';
+        $('name').value = 'Partner NFT';
+        $('description').value = 'Soulbound partner NFT with revenue share.';
+        $('partnerName').value = '';
+        $('rewardPercent').value = '10';
+        $('grade').value = 'Bronze';
+        $('httpImage').checked = false;
         $('contractAddress').value = '';
         $('mintTo').value = '';
+        $('mintReward').value = '10';
         $('walletLookup').value = '';
         $('burnTokenId').value = '';
         $('whitelistAddr').value = '';
         $('processorAddr').value = '';
+        $('processorAllowed').checked = false;
         $('incrementWallet').value = '';
         $('ownerOfTokenId').value = '';
+        $('tonNetwork').value = 'testnet';
+        $('netInfo').textContent = 'Сеть: TON Testnet';
         $('status').textContent = '';
         $('tokenOfOut').textContent = '—';
         $('shareOut').textContent = '—';

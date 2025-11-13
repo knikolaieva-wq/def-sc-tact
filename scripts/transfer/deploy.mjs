@@ -85,7 +85,7 @@ async function main() {
   console.log('Compiling Tact contract…');
   execSync('npx tact -c tact.config.json', { stdio: 'inherit' });
   // Load .pkg and build code/data manually
-  const base = 'build/PaymentProcessor_PaymentProcessor';
+  const base = 'build/transfer/PaymentProcessor_PaymentProcessor';
   let code;
   try {
     const codeBoc = readFileSync(`${base}.code.boc`);

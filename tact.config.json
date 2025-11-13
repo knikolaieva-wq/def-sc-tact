@@ -3,7 +3,13 @@
     {
       "name": "PaymentProcessor",
       "path": "contracts/PaymentProcessor.tact",
-      "output": "build",
+      "output": "build/transfer",
+      "bindings": "js"
+    },
+    {
+      "name": "DefNFT",
+      "path": "contracts/DefNFT.tact",
+      "output": "build/nft",
       "bindings": "js"
     }
   ]
