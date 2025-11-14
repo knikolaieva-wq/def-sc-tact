@@ -21,7 +21,7 @@ function loadDotEnv(file = path.join(ROOT, '.env')) {
       const val = raw.slice(eq + 1).replace(/^['"]|['"]$/g, '');
       if (!(key in process.env)) process.env[key] = val;
     }
-  } catch {}
+  } catch { }
 }
 
 loadDotEnv();
@@ -35,6 +35,7 @@ function parseArgs() {
     else if (a === '--owner') out.owner = args[++i];
     else if (a === '--value') out.value = args[++i];
     else if (a === '--content') out.content = args[++i];
+    else if (a === '--salt') out.salt = args[++i];
   }
   return out;
 }
@@ -83,10 +84,10 @@ function loadCodeCell(basePath) {
   }
 }
 
-function buildCommentCell(text) {
+function buildOffchainContentCell(uri) {
   const builder = beginCell();
-  builder.storeUint(0, 32);
-  builder.storeStringTail(text);
+  builder.storeUint(1, 8);       // 0x01 = off-chain
+  builder.storeStringTail(uri);  // URL как строка
   return builder.endCell();
 }
 
@@ -106,21 +107,32 @@ async function main() {
   const args = parseArgs();
   const OWNER = (args.owner || process.env.DEFNFT_OWNER || process.env.OWNER || '').trim();
   if (!OWNER) throw new Error('Missing constructor param OWNER (pass --owner or set DEFNFT_OWNER)');
+  const salt = args.salt || process.env.DEFNFT_SALT || Date.now().toString(16);
 
   console.log('Compiling Tact contracts…');
   execSync('npx tact -c tact.config.json', { cwd: ROOT, stdio: 'inherit' });
 
   const itemCodeBase = path.join(NFT_BUILD, 'PartnerNftItem_PartnerNftItem');
   const itemCode = loadCodeCell(itemCodeBase);
-  const contentText =
-    args.content || process.env.DEFNFT_COLLECTION_CONTENT || 'Partner NFT Collection';
-  const collectionContent = buildCommentCell(contentText);
+
+  const collectionUri =
+    args.content ||
+    process.env.DEFNFT_COLLECTION_CONTENT;
+
+  if (!collectionUri) {
+    throw new Error(
+      'Missing collection metadata URI. Pass --content "https://.../collection-meta.json" or set DEFNFT_COLLECTION_CONTENT'
+    );
+  }
+
+  const collectionContent = buildOffchainContentCell(collectionUri);
+
   const ownerAddress = Address.parse(OWNER);
 
   console.log('Building state init…');
   const init = buildCollectionInit(ownerAddress, collectionContent, itemCode);
   const contractAddr = contractAddress(0, init);
-  console.log('Collection address:', contractAddr.toString());
+  console.log('Collection address:', contractAddr.toString(), '| salt:', salt);
 
   const client = await getClient(args.network);
   const { wallet, contract: walletContract, keyPair } = await loadDeployerWallet(client);
@@ -132,7 +144,7 @@ async function main() {
     console.log('Deployer wallet:', wallet.address.toString());
   }
 
-  const deployValue = toNano(args.value || process.env.DEFNFT_DEPLOY_VALUE || '0.3');
+  const deployValue = toNano(args.value || process.env.DEFNFT_DEPLOY_VALUE || '0.05');
   const body = beginCell().endCell();
 
   console.log('Sending deploy (value', fromNano(deployValue), 'TON)…');

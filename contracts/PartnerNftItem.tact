@@ -2,6 +2,9 @@
 // TEP-62 NFT item + доп поля под твой кейс
 
 import "@stdlib/deploy";
+import "@stdlib/content";
+import "./messages.tact";
+
 message(0x0f8a7ea5) SetOwner {
     newOwner: Address;
 }
@@ -14,7 +17,7 @@ struct NftData {
     collection_address: Slice;
     owner_address: Slice;
     individual_content: Cell;
-}
+}    
 
 contract PartnerNftItem with Deployable {
 
@@ -31,26 +34,22 @@ contract PartnerNftItem with Deployable {
         collection: Address,
         owner: Address,
         index: Int,
-        content: Cell,
+        uri: String,
         shareBps: Int
     ) {
         self.collection = collection;
         self.owner = owner;
         self.index = index;
-        self.content = content;
+        self.content = createOffchainContent(uri);
         self.shareBps = shareBps;
     }
 
     // ---- Internal helpers ----
-
     inline fun onlyCollection() {
         require(sender() == self.collection, "NOT_COLLECTION");
     }
 
-    // ---- Custom messages (по желанию) ----
-
     // Сигнал от коллекции, что надо сменить owner (если когда-то захочешь делать transfer)
-
     receive(msg: SetOwner) {
         self.onlyCollection();
         self.owner = msg.newOwner;
@@ -66,10 +65,8 @@ contract PartnerNftItem with Deployable {
     }
 
     // ---- TEP-62 обязательный get-метод ----
-    //
     // get_nft_data() returns:
     // (int init?, int index, slice collection_address, slice owner_address, cell individual_content)
-
     get fun get_nft_data(): NftData {
         let initFlag: Int = self.owner == null ? 0 : 1;
         let ownerSlice: Slice = self.owner == null
@@ -83,6 +80,12 @@ contract PartnerNftItem with Deployable {
             owner_address: ownerSlice,
             individual_content: self.content
         };
+    }
+
+    // Пустой receive для деплоя и простых переводов
+    receive(msg: Transfer) { 
+        self.onlyCollection();
+        self.owner = msg.new_owner;
     }
 
     // ---- Доп геттеры под твой кейс ----

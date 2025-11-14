@@ -1,7 +1,9 @@
 // ===== PartnerNftCollection.tact =====
 
 import "@stdlib/deploy";
+import "@stdlib/ownable";
 import "./PartnerNftItem.tact";
+import "./messages.tact";
 
 message(0x157c62bb) Mint {
     to: Address;
@@ -36,7 +38,7 @@ struct CollectionData {
     owner_address: Slice;
 }
 
-contract PartnerNftCollection with Deployable {
+contract PartnerNftCollection with Deployable, Ownable {
 
     // ===== Storage =====
     owner: Address;
@@ -98,17 +100,13 @@ contract PartnerNftCollection with Deployable {
 
         // индекс в коллекции по TEP-62
         let index = self.nextItemIndex;
-        self.nextItemIndex = index + 1;
-
-        // content для item – храним uri как comment
-        let uriCell = msg.uri.asComment();
 
         // Init item-контракта
         let itemInit = initOf PartnerNftItem(
             self.selfAddress(),
             msg.to,
             index,
-            uriCell,
+            msg.uri,
             msg.shareBps
         );
         // 2) считаем адрес айтема
@@ -125,10 +123,14 @@ contract PartnerNftCollection with Deployable {
             to: itemAddress,
             value: ton("0.05"),   // подбери по gas/хранилищу
             mode: SendIgnoreErrors, // опционально
-            body: null,            // без тела
             code: itemInit.code,   // ← вот это вместо stateInit
-            data: itemInit.data    // ← и это
+            data: itemInit.data,    // ← и это
+            body: Transfer {
+                query_id: 0,
+                new_owner: msg.to,
+            }.toCell()
         });
+        self.nextItemIndex = index + 1;
     }
 
     // Burn: владелец NFT может инициировать burn через коллекцию
@@ -186,9 +188,8 @@ contract PartnerNftCollection with Deployable {
         self.onlyTxProcessor();
 
         let idxOpt = self.walletIndex.get(msg.wallet);
-        let idx = idxOpt != null ? idxOpt!! : 0;
-        require(idx != 0, "INVALID_TOKEN");
-
+        require(idxOpt != null, "INVALID_TOKEN");
+        let idx = idxOpt!!;
         let currentOpt = self.successfulTxCount.get(idx);
         let current = currentOpt != null ? currentOpt!! : 0;
         self.successfulTxCount.set(idx, current + 1);
