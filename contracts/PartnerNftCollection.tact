@@ -263,4 +263,8 @@ contract PartnerNftCollection with Deployable, Ownable {
         let shareOpt = self.tokenShareBps.get(idx);
         return shareOpt != null ? shareOpt!! : 0;
     }
+
+    get fun get_version(): Int {
+        return 3;   // новая версия
+    }
 }

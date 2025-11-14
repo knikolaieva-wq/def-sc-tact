@@ -404,14 +404,27 @@
     const showStatus = (msg) => $('status').textContent = msg || '';
 
     const decodeCommentCell = (cell) => {
+      if (!cell) return '';
       try {
         const slice = cell.beginParse();
-        const tag = slice.loadUint(32);
-        if (tag === 0) {
-          return slice.loadStringTail();
+        if (slice.remainingBits >= 8) {
+          const prefix = slice.loadUint(8);
+          if (prefix === 0) {
+            if (slice.remainingBits >= 24) slice.loadUint(24);
+            return slice.loadStringTail();
+          }
+          if (prefix === 0x01) {
+            return slice.loadStringTail();
+          }
         }
-      } catch {}
-      return cell ? cell.toString() : '';
+      } catch (err) {
+        console.warn('decode content error', err);
+      }
+      try {
+        return Buffer.from(cell.toBoc()).toString('hex');
+      } catch {
+        return '';
+      }
     };
 
     const cellToAddressString = (cell) => {
@@ -956,7 +969,7 @@
           validateAddress(contractAddress, $('contractErr'));
           validateAddress(toAddress, $('mintToErr'));
           const shareBps = calcShareBps(rewardPercent);
-          console.log('Mint to', toAddress, 'with shareBps', shareBps);
+          console.log('Mint to', toAddress, 'with shareBps', shareBps, 'with uri', uri);
           const { Address, beginCell } = window.TonCore;
           const body = buildOp(OPS.mint, (b) => {
             b.storeAddress(Address.parse(toAddress));
