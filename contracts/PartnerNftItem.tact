@@ -1,4 +1,5 @@
 import "@stdlib/content";
+import "./Errors.tact";
 
 // ===== Messages =====
 message(0x5fcc3d14) NFTTransfer {
@@ -50,13 +51,14 @@ contract PartnerNftItem {
 
     // ==== Internal helpers ====
     inline fun onlyCollection() {
-        require(sender() == self.collection, "NOT_COLLECTION");
+        throwIf(NotOwner, sender() != self.collection);
     }    
     
     // ==== Receives ====
     receive() { 
         // default receive handler to accept plain TONs transfers
     }
+
     receive(msg: NFTTransfer) { 
         throw(self.ExitCodeNonTransferable); // Non-transferable NFT error code
     }

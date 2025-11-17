@@ -1,5 +1,6 @@
 import "@stdlib/ownable";
 import "./messages.tact";
+import "./Errors.tact";
 
 // ===== Messages =====
 message(0x42c20f7a) Transfer { 
@@ -71,7 +72,7 @@ contract PaymentProcessor with Ownable {
 
     receive(m: SetPlatformCommissionBps) {
         self.requireOwner();
-        require(m.newBps >= 0 && m.newBps <= 10000, "bps out of range");
+        throwIf(InvalidCommissionBps, !(m.newBps >= 0 && m.newBps <= 10000));
         self.platformCommissionBps = m.newBps;
     }
 
@@ -81,7 +82,7 @@ contract PaymentProcessor with Ownable {
         let bal = myBalance();
         // Minimal balance to keep contract operational (rent + small gas headroom)
         let MIN_KEEP: Int = 10_000_000; // ~0.01 TON
-        require(bal > MIN_KEEP, "below reserve");
+        throwIf(BelowReserve, !(bal > MIN_KEEP));
         // Reserve minimal operational balance, send the rest away
         nativeReserve(MIN_KEEP, 0);
         send(SendParameters{ to: to, value: 0, mode: SendRemainingBalance });
@@ -92,22 +93,26 @@ contract PaymentProcessor with Ownable {
         let req = t.req;
         
         // Базовые проверки
-        require(req.amount > 0, "invalid amount");
-        require(req.seller != req.buyer, "invalid seller");
-        require(now() <= t.deadline, "expired");
-        require(sender() == req.buyer, "buyer must send");
+        throwIf(InvalidAmountValidation, req.amount <= 0);
+        throwIf(InvalidSellerValidation, req.seller == req.buyer);
+        throwIf(SignatureExpired, now() > t.deadline);
+        throwIf(InvalidSignature, sender() != req.buyer);
 
         // Nonce check & consume
         let currentNonce = self.nonces.get(req.buyer);
         let nextNonce: Int = (currentNonce != null) ? (currentNonce!! + 1) : 1;
         self.nonces.set(req.buyer, nextNonce);
 
+        let incoming: Int = context().value;
         // Compute commissions
         let commission = (req.amount * self.platformCommissionBps) / 10000;
         let sellerValue = req.buyerPaysCommission ? req.amount : (req.amount - commission);
         let commissionValue = commission > 0 ? commission : 0;
 
-        let incoming: Int = context().value;
+        // Validate that total payment covers amount (+ commission when buyer pays it)
+        let totalRequired = req.buyerPaysCommission ? (req.amount + commission) : req.amount;
+        throwIf(InvalidTotalAmountValidation, incoming < totalRequired);
+
         let balBefore: Int = myBalance() - incoming;
         let prev: Int = (balBefore > 0) ? balBefore : 0;
         nativeReserve(prev, 0); // фиксируем ровно prev; дальнейшие расходы — из входящего
