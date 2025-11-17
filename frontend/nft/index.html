@@ -213,7 +213,7 @@
         </div>
 
         <div class="flex items-center justify-between">
-          <div class="text-sm text-gray-600">Минт требует прав owner и ~0.25 TON на газ/хранение.</div>
+          <div class="text-sm text-gray-600">Минт требует прав owner и ~0.05 TON на газ/хранение.</div>
           <button id="mintBtn" class="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-50" disabled>Минт</button>
         </div>
 
@@ -981,7 +981,7 @@
           console.log('shareBps', BigInt(shareBps));
           console.log('Mint body', body.toBoc().toString('base64'));
           showStatus('Отправляем mint…');
-          await sendMessage(contractAddress, body, toNano('0.25'));
+          await sendMessage(contractAddress, body, toNano('0.05'));
           showStatus('Минт отправлен. Дождитесь подтверждения в Tonkeeper.');
           step = 4;
           updateStepUI();

@@ -55,7 +55,7 @@ contract PartnerNftItem {
     
     // ==== Receives ====
     receive() { 
-        cashback(sender()) 
+        // default receive handler to accept plain TONs transfers
     }
     receive(msg: Transfer) { 
         throw(self.ExitCodeNonTransferable); // Non-transferable NFT error code

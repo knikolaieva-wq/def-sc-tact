@@ -37,7 +37,7 @@ struct CollectionData {
     owner_address: Slice;
 }
 
-contract PartnerNftCollection with Deployable, Ownable {
+contract PartnerNftCollection with Ownable {
 
     // ===== Storage =====
     owner: Address;
@@ -228,6 +228,6 @@ contract PartnerNftCollection with Deployable, Ownable {
     }
 
     get fun get_version(): Int {
-        return 5;
+        return 7;
     }
 }
