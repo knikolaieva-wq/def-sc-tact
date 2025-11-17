@@ -1,4 +1,3 @@
-message(0xb675b483) Transfer {
+message(0x707570b7) ParnerNFTCollectionCashback {
     query_id: Int;
-    new_owner: Address;
 }

@@ -1,10 +1,8 @@
-// ===== PartnerNftCollection.tact =====
-
 import "@stdlib/deploy";
 import "@stdlib/ownable";
 import "./PartnerNftItem.tact";
-import "./messages.tact";
 
+// ===== Messages =====
 message(0x157c62bb) Mint {
     to: Address;
     shareBps: Int;
@@ -32,6 +30,7 @@ message(0x871d66eb) RemoveFromWhitelist {
     wallet: Address;
 }
 
+// ===== Structs =====
 struct CollectionData {
     next_item_index: Int;
     collection_content: Cell;
@@ -42,26 +41,24 @@ contract PartnerNftCollection with Deployable, Ownable {
 
     // ===== Storage =====
     owner: Address;
-    nextItemIndex: Int;            // TEP-62: next_item_index
-    collectionContent: Cell;       // TEP-64 совместимый контент коллекции (можно просто comment с описанием)
-    itemCode: Cell;                // код PartnerNftItem
+    nextItemIndex: Int;  // TEP-62: next_item_index
+    collectionContent: Cell;       // TEP-64: collection_content
+    itemCode: Cell;                // item_code
 
-    // business-логика
-    walletWhitelist: map<Address, Bool>; // wallet -> bool
-    walletIndex: map<Address, Int>;      // wallet -> item index (0 если нет токена)
-    tokenShareBps: map<Int, Int>;        // index -> shareBps
-    successfulTxCount: map<Int, Int>;    // index -> count
-    txProcessors: map<Address, Bool>;    // processor -> bool
-    indexToAddress: map<Int, Address>;   // index -> NFT item address (для get_nft_address_by_index)
+    //  ===== Business-specific storage =====
+    walletWhitelist: map<Address, Bool>;                      // wallet -> bool
+    walletIndex: map<Address, Int>;                 // wallet -> item index
+    tokenShareBps: map<Int, Int>;         // index -> shareBps
+    successfulTxCount: map<Int, Int>;     // index -> count
+    txProcessors: map<Address, Bool>;                         // processor -> bool
+    indexToAddress: map<Int, Address>;              // index -> NFT item address
 
     // ===== Init =====
     init(owner: Address, collectionContent: Cell, itemCode: Cell) {
         self.owner = owner;
-        self.nextItemIndex = 0; // TEP-62 обычно начинает с 0
-
+        self.nextItemIndex = 0;
         self.collectionContent = collectionContent;
         self.itemCode = itemCode;
-
         self.walletWhitelist = emptyMap();
         self.walletIndex = emptyMap();
         self.tokenShareBps = emptyMap();
@@ -70,86 +67,62 @@ contract PartnerNftCollection with Deployable, Ownable {
         self.indexToAddress = emptyMap();
     }
 
-    // ===== Internal helpers =====
-
-    inline fun onlyOwner() {
-        require(sender() == self.owner, "NOT_OWNER");
-    }
-
-    inline fun onlyTxProcessor() {
-        let okOpt = self.txProcessors.get(sender());
-        let ok = okOpt != null ? okOpt!! : false;
-        require(ok, "NOT_PROCESSOR");
-    }
-
-    // helper: адрес этого контракта
-    fun selfAddress(): Address {
-        return myAddress(); // в Tact есть myAddress()
-    }
-
-    // ===== Messages =====
-
+    // ===== Business logic =====
     // Mint 1 NFT per address (TEP-62 style)
     receive(msg: Mint) {
-        self.onlyOwner();
-        // инвариант: 1 токен на адрес
+        self.requireOwner();
+        // Checks
         let existingOpt = self.walletIndex.get(msg.to);
         require(existingOpt == null, "OWNER_ALREADY_HAS_TOKEN");
         require(msg.shareBps >= 0 && msg.shareBps <= 10000, "SHARE_TOO_HIGH");
         require(msg.uri != "", "EMPTY_URI");
 
-        // индекс в коллекции по TEP-62
         let index = self.nextItemIndex;
-
-        // Init item-контракта
+        // 1) prepare init for PartnerNftItem
         let itemInit = initOf PartnerNftItem(
-            self.selfAddress(),
+            myAddress(),
             msg.to,
             index,
             msg.uri,
             msg.shareBps
         );
-        // 2) считаем адрес айтема
+        // 2) calculate item address
         let itemAddress: Address = contractAddress(itemInit);
 
-        // 3) сохраняем индекс -> адрес, whitelist, shareBps и т.д.
+        // 3) send message with init (deploy + msg)
+        send(SendParameters{
+            to: itemAddress,
+            value: ton("0.05"),   // enough for deploy + gas
+            mode: SendIgnoreErrors, 
+            code: itemInit.code,
+            data: itemInit.data,
+            body: null
+        });
+
+        // 4) save index -> address, whitelist, shareBps, etc.
         self.indexToAddress.set(index, itemAddress);
         self.walletIndex.set(msg.to, index);
         self.walletWhitelist.set(msg.to, true);
         self.tokenShareBps.set(index, msg.shareBps);
-
-        // 4) отправляем сообщение с init (deploy + msg)
-        send(SendParameters{
-            to: itemAddress,
-            value: ton("0.05"),   // подбери по gas/хранилищу
-            mode: SendIgnoreErrors, // опционально
-            code: itemInit.code,   // ← вот это вместо stateInit
-            data: itemInit.data,    // ← и это
-            body: Transfer {
-                query_id: 0,
-                new_owner: msg.to,
-            }.toCell()
-        });
         self.nextItemIndex = index + 1;
     }
 
-    // Burn: владелец NFT может инициировать burn через коллекцию
+    // Burn: remove NFT from collection and destroy item
     receive(msg: Burn) {
-        // узнаём, кто _должен_ быть владельцем этого tokenId
+        // check ownership
         let claimedOwner = sender();
-
         let idxOpt = self.walletIndex.get(claimedOwner);
         let idx = idxOpt != null ? idxOpt!! : -1;
         require(idx == msg.tokenId, "NOT_TOKEN_OWNER");
 
-        // адрес item
+        // item address
         let itemAddrOpt = self.indexToAddress.get(msg.tokenId);
         require(itemAddrOpt != null, "INVALID_TOKEN");
         let itemAddr = itemAddrOpt!!;
 
-        // шлём в item сообщение BurnFromCollection
+        // send BurnFromCollection message to item
         let body = beginCell()
-            .storeUint(0xca9e378a, 32) // op BurnFromCollection в item
+            .storeUint(0xca9e378a, 32) // op BurnFromCollection in item
             .endCell();
 
         send(SendParameters{
@@ -158,35 +131,37 @@ contract PartnerNftCollection with Deployable, Ownable {
             body: body
         });
 
-        // чистим данные коллекции
-        self.walletIndex.set(claimedOwner, 0);
+        // cleanup storage
+        self.walletIndex.set(claimedOwner, null);
         self.walletWhitelist.set(claimedOwner, null);
         self.tokenShareBps.set(msg.tokenId, null);
         self.successfulTxCount.set(msg.tokenId, null);
         self.indexToAddress.set(msg.tokenId, null);
     }
 
-    // Management: whitelist
+    // ==== Management ====
     receive(msg: AddToWhitelist) {
-        self.onlyOwner();
+        self.requireOwner();
         self.walletWhitelist.set(msg.wallet, true);
     }
 
     receive(msg: RemoveFromWhitelist) {
-        self.onlyOwner();
+        self.requireOwner();
         self.walletWhitelist.set(msg.wallet, null);
     }
 
-    // Управление процессорами
     receive(msg: SetTxProcessor) {
-        self.onlyOwner();
+        self.requireOwner();
         self.txProcessors.set(msg.processor, msg.allowed);
     }
 
-    // Инкремент счётчика успешных транзакций по кошельку
+    // ===== Business-specific receives =====
+    // Increment successfulTxCount for wallet's token
     receive(msg: IncrementSuccessfulTx) {
-        self.onlyTxProcessor();
-
+        let okOpt = self.txProcessors.get(sender());
+        if (okOpt == null || !okOpt!!) {
+            return; // silently ignore
+        }
         let idxOpt = self.walletIndex.get(msg.wallet);
         require(idxOpt != null, "INVALID_TOKEN");
         let idx = idxOpt!!;
@@ -195,9 +170,7 @@ contract PartnerNftCollection with Deployable, Ownable {
         self.successfulTxCount.set(idx, current + 1);
     }
 
-    // ===== TEP-62 get-методы коллекции =====
-
-    // (int next_item_index, cell collection_content, slice owner_address)
+    // ===== TEP-62 get-methods of the collection =====
     get fun get_collection_data(): CollectionData {
         return CollectionData{
             next_item_index: self.nextItemIndex,
@@ -206,24 +179,17 @@ contract PartnerNftCollection with Deployable, Ownable {
         };
     }
 
-    // get_nft_address_by_index(int index) -> slice address
     get fun get_nft_address_by_index(index: Int): Address {
         let addrOpt = self.indexToAddress.get(index);
         require(addrOpt != null, "NFT_NOT_EXISTS");
-        return addrOpt!!; // Address как slice нормально читается снаружи
+        return addrOpt!!;
     }
 
-    // get_nft_content(int index, cell individual_content) -> cell full_content
-    // У нас весь контент уже лежит в коллекции/айтеме, игнорируем individual_content
-    // get_nft_content(int index, cell individual_content) -> cell full_content
     get fun get_nft_content(index: Int, individual_content: Cell): Cell {
-        // index можешь даже не использовать, все данные уже в individual_content
         return individual_content;
     }
 
-    // ===== Твои геттеры, адаптированные под индексы =====
-
-    // successfulTxCount(wallet)
+    // ===== Additional get-methods =====
     get fun successfulTxCountOf(wallet: Address): Int {
         let idxOpt = self.walletIndex.get(wallet);
         let idx = idxOpt != null ? idxOpt!! : 0;
@@ -234,13 +200,11 @@ contract PartnerNftCollection with Deployable, Ownable {
         return countOpt != null ? countOpt!! : 0;
     }
 
-    // tokenOf(owner)
     get fun tokenOf(owner: Address): Int {
         let idxOpt = self.walletIndex.get(owner);
         return idxOpt != null ? idxOpt!! : -1;
     }   
 
-    // isWalletWhitelisted(wallet)
     get fun isWalletWhitelisted(wallet: Address): Bool {
         let inListOpt = self.walletWhitelist.get(wallet);
         let inList = inListOpt != null ? inListOpt!! : false;
@@ -248,7 +212,6 @@ contract PartnerNftCollection with Deployable, Ownable {
         return inList && hasToken;
     }
 
-    // getPlatformShareBpsForWallet(wallet)
     get fun platformShareBpsForWallet(wallet: Address): Int {
         let inListOpt = self.walletWhitelist.get(wallet);
         let inList = inListOpt != null ? inListOpt!! : false;
@@ -265,6 +228,6 @@ contract PartnerNftCollection with Deployable, Ownable {
     }
 
     get fun get_version(): Int {
-        return 3;   // новая версия
+        return 5;
     }
 }

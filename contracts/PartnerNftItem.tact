@@ -1,16 +1,17 @@
-// ===== PartnerNftItem.tact =====
-// TEP-62 NFT item + доп поля под твой кейс
-
-import "@stdlib/deploy";
 import "@stdlib/content";
-import "./messages.tact";
 
-message(0x0f8a7ea5) SetOwner {
-    newOwner: Address;
+// ===== Messages =====
+message(0xb675b483) Transfer {
+    query_id: Int as uint64;
+    new_owner: Address;
+    response_destination: Address;
+    custom_payload: Cell? = null;
+    forward_amount: Int as coins;
+    forward_payload: Slice as remaining;
 }
-message(0xca9e378a) BurnFromCollection {
-    
-}
+message(0xca9e378a) BurnFromCollection {}
+
+// ===== Structs =====
 struct NftData {
     init: Int;
     index: Int;
@@ -19,17 +20,20 @@ struct NftData {
     individual_content: Cell;
 }    
 
-contract PartnerNftItem with Deployable {
+contract PartnerNftItem {
 
-    // ---- Storage ----
-    collection: Address;      // адрес коллекции
-    owner: Address?;           // владелец NFT
-    index: Int;               // индекс в коллекции
-    content: Cell;            // индивидуальный контент (uri в виде comment-ячейки)
-    shareBps: Int;            // 0..10000
-    // successfulTxCount будет храниться в коллекции (как у тебя сейчас), чтобы не ходить в item
+    // ==== Storage ====
+    collection: Address;       // address of PartnerNftCollection
+    owner: Address?;           // owner address, null if burned
+    index: Int;      // index in collection
+    content: Cell;             // individual content (uri as comment cell)
+    shareBps: Int;   // 0..10000
+    // successfulTxCount will be stored in collection (as you have now), to avoid going to item
 
-    // ---- Init ----
+    // ==== Error codes ====
+    const ExitCodeNonTransferable: Int = 1001;
+
+    // ==== Init ====
     init(
         collection: Address,
         owner: Address,
@@ -44,34 +48,34 @@ contract PartnerNftItem with Deployable {
         self.shareBps = shareBps;
     }
 
-    // ---- Internal helpers ----
+    // ==== Internal helpers ====
     inline fun onlyCollection() {
         require(sender() == self.collection, "NOT_COLLECTION");
+    }    
+    
+    // ==== Receives ====
+    receive() { 
+        cashback(sender()) 
+    }
+    receive(msg: Transfer) { 
+        throw(self.ExitCodeNonTransferable); // Non-transferable NFT error code
     }
 
-    // Сигнал от коллекции, что надо сменить owner (если когда-то захочешь делать transfer)
-    receive(msg: SetOwner) {
-        self.onlyCollection();
-        self.owner = msg.newOwner;
-    }
-
-    // Сигнал от коллекции на burn (если захочешь реально уничтожать контракт)
+    // Signal from collection to burn (if you want to actually destroy the contract)
     receive(msg: BurnFromCollection) {
         self.onlyCollection();
-        // Либо просто помечаем как неинициализированный:
+        // Either just mark as uninitialized:
         self.owner = null;
-        // Либо совсем вырубаем контракт:
-        // selfdestruct(self.collection);
+        // Or completely shut down the contract:
+        //selfdestruct(self.collection);
     }
 
-    // ---- TEP-62 обязательный get-метод ----
-    // get_nft_data() returns:
-    // (int init?, int index, slice collection_address, slice owner_address, cell individual_content)
+    // ==== TEP-62 mandatory get-method ====
     get fun get_nft_data(): NftData {
         let initFlag: Int = self.owner == null ? 0 : 1;
         let ownerSlice: Slice = self.owner == null
-            ? newAddress(0, 0).asSlice()      // dummy, всё равно не используется при initFlag = 0
-            : self.owner!!.asSlice();          // !! разыменует Address? → Address
+            ? newAddress(0, 0).asSlice()
+            : self.owner!!.asSlice();
 
         return NftData{
             init: initFlag,
@@ -82,14 +86,7 @@ contract PartnerNftItem with Deployable {
         };
     }
 
-    // Пустой receive для деплоя и простых переводов
-    receive(msg: Transfer) { 
-        self.onlyCollection();
-        self.owner = msg.new_owner;
-    }
-
-    // ---- Доп геттеры под твой кейс ----
-
+    // ==== Additional getters ====
     get fun get_share_bps(): Int {
         return self.shareBps;
     }
