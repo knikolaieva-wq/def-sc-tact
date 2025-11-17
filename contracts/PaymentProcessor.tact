@@ -45,7 +45,6 @@ contract PaymentProcessor with Ownable {
 
     partnerCollection: Address;     // contract address implementing IDefNFT
     partnerShareBps: map<Address, Int>;
-    partnerWhitelist: map<Address, Bool>;
 
     // Simple per-buyer nonce storage
     nonces: map<Address, Int>;
@@ -129,15 +128,12 @@ contract PaymentProcessor with Ownable {
         // Optional partner commission (пока отключено, но структура готова)
         if (req.optionalCommissionWallet != null) {
             let optionalCommissionWallet = req.optionalCommissionWallet!!;
-            let wlOpt = self.partnerWhitelist.get(optionalCommissionWallet);
-            let whitelisted = wlOpt != null && wlOpt!!;
-
             let shareOpt = self.partnerShareBps.get(optionalCommissionWallet);
             let shareBps = shareOpt != null ? shareOpt!! : 0;
 
-            if (whitelisted && shareBps > 0 && shareBps <= 10000) {
-                 optionalPart = (commission * shareBps) / 10000;
-                 commissionValue -= optionalPart;
+            if (shareBps > 0 && shareBps <= 10000) {
+                optionalPart = (commission * shareBps) / 10000;
+                commissionValue -= optionalPart;
             }
         }
 
@@ -162,21 +158,18 @@ contract PaymentProcessor with Ownable {
     receive(msg: RegisterPartnerShare) {
         self.onlyCollection();
 
-        // Если не вайтлистнут или share <= 0 — убираем из локального реестра
-        if (!msg.whitelisted || msg.shareBps <= 0) {
+        // Если share <= 0 — убираем из локального реестра
+        if (msg.shareBps <= 0) {
             self.partnerShareBps.set(msg.wallet, null);
-            self.partnerWhitelist.set(msg.wallet, null);
             return;
         }
 
         self.partnerShareBps.set(msg.wallet, msg.shareBps);
-        self.partnerWhitelist.set(msg.wallet, true);
     }
 
     receive(msg: UnregisterPartnerShare) {
         self.onlyCollection();
         self.partnerShareBps.set(msg.wallet, null);
-        self.partnerWhitelist.set(msg.wallet, null);
     }
 
     // ============ Views ============

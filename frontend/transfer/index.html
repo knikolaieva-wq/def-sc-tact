@@ -378,7 +378,7 @@
         const internalFloor = perInternal * BigInt(outgoingCount);
 
         // Небольшой запас на action/роутинг
-        const actionFloor = toNano('0.0006');
+        const actionFloor = toNano('0.005');
 
         return externalFee + internalFloor + actionFloor;
       }

@@ -5,7 +5,6 @@ message(0xb803b08d) IncrementSuccessfulTx {
 message(0x50525247) RegisterPartnerShare {  // "PPRG"
     wallet: Address;
     shareBps: Int;
-    whitelisted: Bool;
 }
 
 // Удаление партнёра

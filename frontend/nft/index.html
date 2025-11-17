@@ -213,7 +213,7 @@
         </div>
 
         <div class="flex items-center justify-between">
-          <div class="text-sm text-gray-600">Минт требует прав owner и ~0.05 TON на газ/хранение.</div>
+          <div class="text-sm text-gray-600">Минт требует прав owner и ~0.1 TON на газ/хранение.</div>
           <button id="mintBtn" class="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-50" disabled>Минт</button>
         </div>
 
@@ -230,8 +230,10 @@
             <input id="whitelistAddr" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="EQ..." />
           </label>
           <div class="flex items-center gap-3 self-end">
-            <button id="addWhitelistBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Добавить</button>
-            <button id="removeWhitelistBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Удалить</button>
+            <label class="flex items-center gap-2 text-sm">
+              <input id="whitelistAllowed" type="checkbox" class="rounded border" /> allowed
+            </label>
+            <button id="setWhitelistBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Set whitelist</button>
           </div>
 
           <label class="flex flex-col gap-1">
@@ -372,8 +374,7 @@
       burn: 0xca9e378a,
       increment: 0xb803b08d,
       setProcessor: 0x791c083b,
-      addWhitelist: 0x2231a99d,
-      removeWhitelist: 0x871d66eb,
+      setWhitelist: 0x1599f05f
     };
     const toNano = (ton) => {
       const value = Number(ton || 0);
@@ -981,7 +982,7 @@
           console.log('shareBps', BigInt(shareBps));
           console.log('Mint body', body.toBoc().toString('base64'));
           showStatus('Отправляем mint…');
-          await sendMessage(contractAddress, body, toNano('0.05'));
+          await sendMessage(contractAddress, body, toNano('0.1'));
           showStatus('Минт отправлен. Дождитесь подтверждения в Tonkeeper.');
           step = 4;
           updateStepUI();
@@ -1031,19 +1032,21 @@
         }
       });
 
-      $('addWhitelistBtn').addEventListener('click', () => toggleWhitelist(true));
-      $('removeWhitelistBtn').addEventListener('click', () => toggleWhitelist(false));
+      $('setWhitelistBtn').addEventListener('click', () => toggleWhitelist());
 
-      async function toggleWhitelist(add) {
+      async function toggleWhitelist() {
         const contractAddress = $('contractAddress').value.trim();
         const target = $('whitelistAddr').value.trim();
+        const allowed = $('whitelistAllowed').checked;
         try {
           validateAddress(contractAddress, $('contractErr'));
           validateAddress(target, $('contractErr'));
-          const op = add ? OPS.addWhitelist : OPS.removeWhitelist;
           const { Address } = window.TonCore;
-          const body = buildOp(op, (b) => b.storeAddress(Address.parse(target)));
-          showStatus(`${add ? 'Добавляем' : 'Удаляем'} whitelist…`);
+          const body = buildOp(OPS.setWhitelist, (b) => {
+            b.storeAddress(Address.parse(target));
+            b.storeBit(allowed);
+          });
+          showStatus('Updating whitelist…');
           await sendMessage(contractAddress, body, toNano('0.05'));
           showStatus('Транзакция отправлена.');
         } catch (e) {

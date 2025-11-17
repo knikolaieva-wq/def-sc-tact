@@ -7,7 +7,7 @@ import "./Errors.tact";
 message(0x157c62bb) Mint {
     to: Address;
     shareBps: Int;
-    uri: String;
+    uri: String;        
 }
 
 message(0xca9e378a) Burn {
@@ -19,12 +19,9 @@ message(0x791c083b) SetTxProcessor {
     allowed: Bool;
 }
 
-message(0x2231a99d) AddToWhitelist {
+message(0x1599f05f) SetWalletWhitelist {
     wallet: Address;
-}
-
-message(0x871d66eb) RemoveFromWhitelist {
-    wallet: Address;
+    allowed: Bool;
 }
 
 // ===== Structs =====
@@ -101,6 +98,19 @@ contract PartnerNftCollection with Ownable {
         self.walletIndex.set(msg.to, index);
         self.walletWhitelist.set(msg.to, true);
         self.tokenShareBps.set(index, msg.shareBps);
+        foreach (processor, allowed in self.txProcessors) {
+            if (allowed) {
+                send(SendParameters{
+                    to: processor,
+                    value: ton("0.02"),
+                    mode: 0,
+                    body: RegisterPartnerShare{
+                        wallet: msg.to,
+                        shareBps: self.platformShareBpsForWallet(msg.to)
+                    }.toCell()
+                });
+            }
+        }
         self.nextItemIndex = index + 1;
     }
 
@@ -134,17 +144,36 @@ contract PartnerNftCollection with Ownable {
         self.tokenShareBps.set(msg.tokenId, null);
         self.successfulTxCount.set(msg.tokenId, null);
         self.indexToAddress.set(msg.tokenId, null);
-    }
 
+        foreach (processor, allowed in self.txProcessors) {
+            if (allowed) {
+                send(SendParameters{
+                    to: processor,
+                    value: ton("0.02"),
+                    mode: 0,
+                    body: UnregisterPartnerShare{ wallet: claimedOwner }.toCell()
+                });
+            }
+        }
+    }
     // ==== Management ====
-    receive(msg: AddToWhitelist) {
+    receive(msg: SetWalletWhitelist) {
         self.requireOwner();
-        self.walletWhitelist.set(msg.wallet, true);
-    }
-
-    receive(msg: RemoveFromWhitelist) {
-        self.requireOwner();
-        self.walletWhitelist.set(msg.wallet, null);
+        self.walletWhitelist.set(msg.wallet, msg.allowed);
+         // считаем shareBps для этого кошелька
+        foreach (processor, allowedProc in self.txProcessors) {
+            if (allowedProc) {
+                send(SendParameters{
+                    to: processor,
+                    value: ton("0.02"),
+                    mode: 0,
+                    body: RegisterPartnerShare{
+                        wallet: msg.wallet,
+                        shareBps: self.platformShareBpsForWallet(msg.wallet)
+                    }.toCell()
+                });
+            }
+        }
     }
 
     receive(msg: SetTxProcessor) {
