@@ -1,5 +1,5 @@
 import "@stdlib/ownable";
-import "./messages.tact";
+import "./Messages.tact";
 import "./Errors.tact";
 
 // ===== Messages =====

@@ -1,6 +1,6 @@
 import "@stdlib/ownable";
 import "./PartnerNftItem.tact";
-import "./messages.tact";
+import "./Messages.tact";
 import "./Errors.tact";
 
 // ===== Messages =====
