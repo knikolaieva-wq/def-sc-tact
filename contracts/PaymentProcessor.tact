@@ -159,7 +159,7 @@ contract PaymentProcessor with Ownable {
         self.onlyCollection();
 
         // Если share <= 0 — убираем из локального реестра
-        if (msg.shareBps <= 0) {
+        if (msg.shareBps == null || msg.shareBps!! <= 0) {
             self.partnerShareBps.set(msg.wallet, null);
             return;
         }

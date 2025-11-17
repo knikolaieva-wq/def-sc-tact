@@ -243,19 +243,15 @@ contract PartnerNftCollection with Ownable {
         return inList && hasToken;
     }
 
-    get fun platformShareBpsForWallet(wallet: Address): Int {
+    get fun platformShareBpsForWallet(wallet: Address): Int? {
         let inListOpt = self.walletWhitelist.get(wallet);
         let inList = inListOpt != null ? inListOpt!! : false;
-        if (!inList) {
-            return 0;
-        }
         let idxOpt = self.walletIndex.get(wallet);
-        if (idxOpt == null) {
-            return 0;
+        if (!inList || idxOpt == null) {
+            return null;
         }
         let idx = idxOpt!!;
-        let shareOpt = self.tokenShareBps.get(idx);
-        return shareOpt != null ? shareOpt!! : 0;
+        return self.tokenShareBps.get(idx);
     }
 
     get fun get_version(): Int {

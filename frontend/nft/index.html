@@ -318,22 +318,6 @@
             <div id="successOut" class="text-sm">—</div>
           </div>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">ownerOf(tokenId)</span>
-            <input id="ownerOfTokenId" class="px-3 py-2 rounded-xl border focus:ring-2 focus:ring-black/10" placeholder="1" />
-          </label>
-          <div class="flex items-end">
-            <button id="ownerOfBtn"
-              class="px-4 py-2 rounded-xl border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white">Читать
-              ownerOf</button>
-          </div>
-        </div>
-        <div class="p-4 rounded-2xl border bg-gray-50">
-          <div class="font-semibold mb-1">ownerOf(tokenId)</div>
-          <div id="ownerOfOut" class="text-sm">—</div>
-        </div>
       </section>
     </main>
 
@@ -469,10 +453,9 @@
       'processorAddr',
       'incrementWallet',
       'walletLookup',
-      'ownerOfTokenId',
       'nftIndexLookup'
     ];
-    const CHECKBOX_FIELDS = ['httpImage', 'processorAllowed'];
+    const CHECKBOX_FIELDS = ['httpImage', 'processorAllowed', 'whitelistAllowed'];
 
     function saveFormData() {
       try {
@@ -1107,7 +1090,7 @@
           const success = await client.runMethod(cAddr, 'successfulTxCountOf', [stackAddress(wallet)]);
           $('tokenOfOut').textContent = tokenOf.stack.readNumber().toString();
           $('shareOut').textContent = share.stack.readNumber().toString();
-          $('whitelistOut').textContent = whitelist.stack.readNumber() === 1 ? 'true' : 'false';
+          $('whitelistOut').textContent = whitelist.stack.readBoolean();
           $('successOut').textContent = success.stack.readNumber().toString();
         } catch (e) {
           console.error(e);
@@ -1116,28 +1099,6 @@
       }
 
       $('readWalletBtn').addEventListener('click', () => readWalletState());
-
-      $('ownerOfBtn').addEventListener('click', async () => {
-        const contractAddress = $('contractAddress').value.trim();
-        const tokenId = $('ownerOfTokenId').value.trim();
-        try {
-          if (!contractAddress) throw new Error('Введите адрес контракта');
-          const id = validateTokenId(tokenId);
-          const client = await rpcClientForCurrentNet();
-          const { TonAddress } = window.TonRpc;
-          const { beginCell } = window.TonCore;
-          const cell = beginCell();
-          cell.storeInt(id, 257);
-          const res = await client.runMethod(TonAddress.parse(contractAddress), 'ownerOf', [
-            { type: 'slice', cell: cell.endCell() },
-          ]);
-          const addr = res.stack.readAddress();
-          $('ownerOfOut').textContent = addr.toString({ bounceable: false });
-        } catch (e) {
-          console.error(e);
-          $('ownerOfOut').textContent = 'Ошибка: ' + (e?.message || e);
-        }
-      });
 
       $('readWalletBtn').addEventListener('click', () => {
         const addr = $('walletLookup').value.trim();
@@ -1159,6 +1120,7 @@
         $('walletLookup').value = '';
         $('burnTokenId').value = '';
         $('whitelistAddr').value = '';
+        $('whitelistAllowed').checked = false;
         $('processorAddr').value = '';
         $('processorAllowed').checked = false;
         $('incrementWallet').value = '';

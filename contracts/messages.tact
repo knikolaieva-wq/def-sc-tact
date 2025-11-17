@@ -4,7 +4,7 @@ message(0xb803b08d) IncrementSuccessfulTx {
 // Регистрация/обновление партнёра
 message(0x50525247) RegisterPartnerShare {  // "PPRG"
     wallet: Address;
-    shareBps: Int;
+    shareBps: Int?;
 }
 
 // Удаление партнёра
