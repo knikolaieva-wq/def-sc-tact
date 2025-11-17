@@ -1,6 +1,6 @@
-import "@stdlib/deploy";
 import "@stdlib/ownable";
 import "./PartnerNftItem.tact";
+import "./messages.tact";
 
 // ===== Messages =====
 message(0x157c62bb) Mint {
@@ -11,10 +11,6 @@ message(0x157c62bb) Mint {
 
 message(0xca9e378a) Burn {
     tokenId: Int;   // == item index
-}
-
-message(0xb803b08d) IncrementSuccessfulTx {
-    wallet: Address;
 }
 
 message(0x791c083b) SetTxProcessor {
@@ -158,13 +154,18 @@ contract PartnerNftCollection with Ownable {
     // ===== Business-specific receives =====
     // Increment successfulTxCount for wallet's token
     receive(msg: IncrementSuccessfulTx) {
-        let okOpt = self.txProcessors.get(sender());
-        if (okOpt == null || !okOpt!!) {
-            return; // silently ignore
+        // 1) check sender is allowed tx processor
+        let allowedOpt = self.txProcessors.get(sender());
+        if (allowedOpt == null || !allowedOpt!!) {
+            return;
         }
+        // 2) find token index for wallet
         let idxOpt = self.walletIndex.get(msg.wallet);
-        require(idxOpt != null, "INVALID_TOKEN");
+        if (idxOpt == null) {
+            return;
+        }
         let idx = idxOpt!!;
+        // 3) increment successfulTxCount
         let currentOpt = self.successfulTxCount.get(idx);
         let current = currentOpt != null ? currentOpt!! : 0;
         self.successfulTxCount.set(idx, current + 1);

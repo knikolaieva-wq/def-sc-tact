@@ -1,16 +1,21 @@
-// PaymentProcessor for TON (Tact)
-// Mirrors core logic of the provided Solidity contract:
-// - Owner-managed platformCommissionBps
-// - Transfer with commission splitting and optional partner share
-// - Nonces + deadline checks (direct-call flow: buyer must send the message)
+import "@stdlib/ownable";
+import "./messages.tact";
 
-// Minimal interface for an external NFT-like contract used for rewards
-// Exposes two interactions analogous to the Solidity example:
-// - getPlatformShareBpsForWallet(address) -> Int (0..10000)
-// - incrementSuccessfulTx(address)
-// Note: in TON, cross-contract reads are get-method calls, writes are internal messages.
-//import "@stdlib/stdlib.tact";  // или конкретные символы: rawReserve, SendMode.*, и т.п.
-
+// ===== Messages =====
+message(0x42c20f7a) Transfer { 
+    req: PaymentRequest; 
+    deadline: Int; 
+}
+message(0xeeab28d0) SetPlatformCommissionBps { 
+    newBps: Int; 
+}
+message(0xe225cbda) WithdrawAll { 
+    to: Address; 
+}
+message(0xc2b41d43) SetOwner { 
+    newOwner: Address; 
+}
+// ===== Structs =====
 struct PaymentRequest {
     buyer: Address;
     seller: Address;
@@ -31,51 +36,47 @@ struct ConfigResponse {
     platformCommissionBps: Int;
 }
 
-message Transfer { req: PaymentRequest; deadline: Int; }
-message SetPlatformCommissionBps { newBps: Int; }
-message WithdrawAll { to: Address; }
-message SetOwner { newOwner: Address; }
+contract PaymentProcessor with Ownable {
 
-contract PaymentProcessor {
     owner: Address;
     platformCommissionBps: Int; // 0..10000
     mainCommissionWallet: Address;
-    nftCollection: Address;     // contract address implementing IDefNFT
+
+    partnerCollection: Address;     // contract address implementing IDefNFT
+    partnerShareBps: map<Address, Int>;
+    partnerWhitelist: map<Address, Bool>;
 
     // Simple per-buyer nonce storage
     nonces: map<Address, Int>;
 
-    init(owner: Address, mainCommissionWallet: Address, nftCollection: Address) {
+    const ExitCodeNotCollection: Int = 1002;
+
+    init(owner: Address, mainCommissionWallet: Address, partnerCollection: Address) {
         self.owner = owner;
         self.mainCommissionWallet = mainCommissionWallet;
-        self.nftCollection = nftCollection;
+        self.partnerCollection = partnerCollection;
         self.platformCommissionBps = 25; // 0.25%
     }
 
-    // 3) Добавим get-методы для фронта
-    get fun getConfig(): ConfigResponse {
-        return ConfigResponse{
-            owner: self.owner,
-            mainCommissionWallet: self.mainCommissionWallet,
-            nftCollection: self.nftCollection,
-            platformCommissionBps: self.platformCommissionBps
-        };
+    // ==== Internal helpers ====
+    inline fun onlyCollection() {
+        throwIf(self.ExitCodeNotCollection, sender() != self.partnerCollection);
     }
 
     // ============ Admin ============
     receive(m: SetOwner) {
-        require(sender() == self.owner, "only owner");
+        self.requireOwner();
         self.owner = m.newOwner;
     }
 
     receive(m: SetPlatformCommissionBps) {
-        require(sender() == self.owner, "only owner");
+        self.requireOwner();
         require(m.newBps >= 0 && m.newBps <= 10000, "bps out of range");
         self.platformCommissionBps = m.newBps;
     }
 
     receive(w: WithdrawAll) {
-        require(sender() == self.owner, "only owner");
+        self.requireOwner();
         let to = w.to;
         let bal = myBalance();
         // Minimal balance to keep contract operational (rent + small gas headroom)
@@ -118,40 +119,72 @@ contract PaymentProcessor {
             bounce: true,
             mode: SendPayGasSeparately // чтобы не тратить резерв на форвард-фии продавцу
         });
+        // Main commission payout
+        let optionalPart: Int = 0;
+        // Optional partner commission (пока отключено, но структура готова)
+        if (req.optionalCommissionWallet != null) {
+            let optionalCommissionWallet = req.optionalCommissionWallet!!;
+            let wlOpt = self.partnerWhitelist.get(optionalCommissionWallet);
+            let whitelisted = wlOpt != null && wlOpt!!;
 
-        // Platform commission - отправляем если есть
+            let shareOpt = self.partnerShareBps.get(optionalCommissionWallet);
+            let shareBps = shareOpt != null ? shareOpt!! : 0;
+
+            if (whitelisted && shareBps > 0 && shareBps <= 10000) {
+                 optionalPart = (commission * shareBps) / 10000;
+                 commissionValue -= optionalPart;
+            }
+        }
+
         if (commissionValue > 0) {
             send(SendParameters{ 
                 to: self.mainCommissionWallet, 
                 value: commissionValue,
                 bounce: true,
-                mode: SendPayGasSeparately // чтобы не тратить резерв на форвард-фии платформе
+                mode: SendPayGasSeparately
             });
+            if (optionalPart > 0) {
+                send(SendParameters{ 
+                    to: req.optionalCommissionWallet!!, 
+                    value: optionalPart,
+                    mode: SendPayGasSeparately,
+                    bounce: true
+                });
+            }
+        }
+    }
+
+    receive(msg: RegisterPartnerShare) {
+        self.onlyCollection();
+
+        // Если не вайтлистнут или share <= 0 — убираем из локального реестра
+        if (!msg.whitelisted || msg.shareBps <= 0) {
+            self.partnerShareBps.set(msg.wallet, null);
+            self.partnerWhitelist.set(msg.wallet, null);
+            return;
         }
 
-        // Optional partner commission (пока отключено, но структура готова)
-        // if (req.optionalCommissionWallet != null) {
-        //     let optionalPart = (commission * shareFromNFT) / 10000;
-        //     if (optionalPart > 0) {
-        //         send(SendParameters{ 
-        //             to: req.optionalCommissionWallet!!, 
-        //             value: optionalPart,
-        //             mode: 1,
-        //             bounce: true
-        //         });
-        //     }
-        // }
+        self.partnerShareBps.set(msg.wallet, msg.shareBps);
+        self.partnerWhitelist.set(msg.wallet, true);
+    }
 
-        // Возврат сдачи автоматически отправляет весь оставшийся баланс (с учетом потраченного газа)
-        // send(SendParameters{
-        //     to: sender(),
-        //     value: 0,
-        //     mode: SendRemainingBalance + SendIgnoreErrors,
-        //     bounce: false
-        // });
+    receive(msg: UnregisterPartnerShare) {
+        self.onlyCollection();
+        self.partnerShareBps.set(msg.wallet, null);
+        self.partnerWhitelist.set(msg.wallet, null);
     }
 
     // ============ Views ============
+      // 3) Добавим get-методы для фронта
+    get fun getConfig(): ConfigResponse {
+        return ConfigResponse{
+            owner: self.owner,
+            mainCommissionWallet: self.mainCommissionWallet,
+            nftCollection: self.partnerCollection,
+            platformCommissionBps: self.platformCommissionBps
+        };
+    }
+
     get fun previewPayment(amount: Int, buyerPaysCommission: Bool): Preview {
         let commission = (amount * self.platformCommissionBps) / 10000;
         let totalPay = buyerPaysCommission ? (amount + commission) : amount;
