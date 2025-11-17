@@ -1,13 +1,13 @@
 import "@stdlib/content";
 
 // ===== Messages =====
-message(0xb675b483) Transfer {
-    query_id: Int as uint64;
-    new_owner: Address;
-    response_destination: Address;
-    custom_payload: Cell? = null;
-    forward_amount: Int as coins;
-    forward_payload: Slice as remaining;
+message(0x5fcc3d14) NFTTransfer {
+    queryId: Int as uint64;
+    newOwner: Address; // Address of the new owner of the NFT item.
+    responseDestination: Address; // Address to send a response confirming a successful transfer and the remaining incoming message coins.
+    customPayload: Cell? = null; // Optional custom data. In most cases, this should be null.
+    forwardAmount: Int as coins; // The amount of nanotons to be sent to the new owner.
+    forwardPayload: Slice as remaining; // Optional custom data that should be sent to the new owner.
 }
 message(0xca9e378a) BurnFromCollection {}
 
@@ -57,7 +57,7 @@ contract PartnerNftItem {
     receive() { 
         // default receive handler to accept plain TONs transfers
     }
-    receive(msg: Transfer) { 
+    receive(msg: NFTTransfer) { 
         throw(self.ExitCodeNonTransferable); // Non-transferable NFT error code
     }
 
