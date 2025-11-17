@@ -1,6 +1,7 @@
 import "@stdlib/deploy";
 import "@stdlib/ownable";
 import "./PartnerNftItem.tact";
+import "./Errors.tact";
 
 // ===== Messages =====
 message(0x157c62bb) Mint {
@@ -73,9 +74,9 @@ contract PartnerNftCollection with Ownable {
         self.requireOwner();
         // Checks
         let existingOpt = self.walletIndex.get(msg.to);
-        require(existingOpt == null, "OWNER_ALREADY_HAS_TOKEN");
-        require(msg.shareBps >= 0 && msg.shareBps <= 10000, "SHARE_TOO_HIGH");
-        require(msg.uri != "", "EMPTY_URI");
+        throwIf(OwnerAlreadyHasToken, existingOpt != null);
+        throwIf(RewardBpsTooHigh, !(msg.shareBps >= 0 && msg.shareBps <= 10000));
+        throwIf(InvalidTokenURI, msg.uri == "");
 
         let index = self.nextItemIndex;
         // 1) prepare init for PartnerNftItem
@@ -113,11 +114,11 @@ contract PartnerNftCollection with Ownable {
         let claimedOwner = sender();
         let idxOpt = self.walletIndex.get(claimedOwner);
         let idx = idxOpt != null ? idxOpt!! : -1;
-        require(idx == msg.tokenId, "NOT_TOKEN_OWNER");
+        throwIf(NotOwner, idx != msg.tokenId);
 
         // item address
         let itemAddrOpt = self.indexToAddress.get(msg.tokenId);
-        require(itemAddrOpt != null, "INVALID_TOKEN");
+        throwIf(InvalidToken, itemAddrOpt == null);
         let itemAddr = itemAddrOpt!!;
 
         // send BurnFromCollection message to item
@@ -163,7 +164,7 @@ contract PartnerNftCollection with Ownable {
             return; // silently ignore
         }
         let idxOpt = self.walletIndex.get(msg.wallet);
-        require(idxOpt != null, "INVALID_TOKEN");
+        throwIf(InvalidToken, idxOpt == null);
         let idx = idxOpt!!;
         let currentOpt = self.successfulTxCount.get(idx);
         let current = currentOpt != null ? currentOpt!! : 0;
@@ -181,8 +182,8 @@ contract PartnerNftCollection with Ownable {
 
     get fun get_nft_address_by_index(index: Int): Address {
         let addrOpt = self.indexToAddress.get(index);
-        require(addrOpt != null, "NFT_NOT_EXISTS");
-        return addrOpt!!;
+        throwIf(InvalidToken, addrOpt == null);
+        return addrOpt!!; // Address как slice нормально читается снаружи
     }
 
     get fun get_nft_content(index: Int, individual_content: Cell): Cell {
