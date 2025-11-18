@@ -260,6 +260,6 @@ contract PartnerNftCollection with Ownable {
     }
 
     get fun get_version(): Int {
-        return 9;
+        return 1;
     }
 }

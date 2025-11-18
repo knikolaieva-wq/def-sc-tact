@@ -379,6 +379,11 @@
     let imageFile = null;
     let imageCid = '';
     let metaCid = '';
+    let collectionDataOut;
+    let nftIndexLookupEl;
+    let nftAddressOut;
+    let nftDataOut;
+    let resTokenAddressEl;
 
     const $ = (id) => document.getElementById(id);
     const setDot = (n, state) => {
@@ -801,11 +806,11 @@
         saveFormData();
       });
 
-      const collectionDataOut = $('collectionDataOut');
-      const nftIndexLookupEl = $('nftIndexLookup');
-      const nftAddressOut = $('nftAddressOut');
-      const nftDataOut = $('nftDataOut');
-      const resTokenAddressEl = $('resTokenAddress');
+      collectionDataOut = $('collectionDataOut');
+      nftIndexLookupEl = $('nftIndexLookup');
+      nftAddressOut = $('nftAddressOut');
+      nftDataOut = $('nftDataOut');
+      resTokenAddressEl = $('resTokenAddress');
       const dropZone = $('dropZone');
       const readCollectionBtn = $('readCollectionBtn');
       const nftIndexBtn = $('nftIndexBtn');
