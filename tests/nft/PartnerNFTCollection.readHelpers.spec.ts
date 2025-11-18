@@ -56,11 +56,11 @@ describe('PartnerNFTCollection - read helpers', () => {
 
     describe('Positive', () => {
         it('getPlatformShareBpsForWallet returns live values', async () => {
-            expect(await collection.getPlatformShareBpsForWallet(alice.address)).toBe(0n);
+            expect(await collection.getPlatformShareBpsForWallet(alice.address)).toBeNull();
 
             const resAdd = await setWhitelist(owner, alice, true);
             expect(resAdd.transactions).toHaveTransaction({ to: collection.address, aborted: false });
-            expect(await collection.getPlatformShareBpsForWallet(alice.address)).toBe(0n);
+            expect(await collection.getPlatformShareBpsForWallet(alice.address)).toBeNull();
 
             const share = 7777n;
             await mintFor(alice, share, 'ipfs://1');
@@ -68,7 +68,7 @@ describe('PartnerNFTCollection - read helpers', () => {
 
             const resRemove = await setWhitelist(owner, alice, false);
             expect(resRemove.transactions).toHaveTransaction({ to: collection.address, aborted: false });
-            expect(await collection.getPlatformShareBpsForWallet(alice.address)).toBe(0n);
+            expect(await collection.getPlatformShareBpsForWallet(alice.address)).toBeNull();
         });
     });
 });
