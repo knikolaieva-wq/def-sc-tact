@@ -353,7 +353,7 @@
       const isTestnet = () => document.getElementById('tonNetwork').value === 'testnet';
 
       // Полная оценка = внешняя комиссия (SDK) + гарантированный порог на внутренние исходящие
-      async function estimateFeesFull({ address, bodyB64, outgoingCount }) {
+      async function estimateFeesFull({ address, bodyB64, outgoingCount, hasOptionalWallet = false }) {
         const client = await rpcClientForCurrentNet();
 
         // В браузере нужен Buffer-полифил, см. предыдущие шаги
@@ -377,8 +377,9 @@
         const perInternal = isTestnet() ? toNano('0.0017') : toNano('0.0019');
         const internalFloor = perInternal * BigInt(outgoingCount);
 
-        // Небольшой запас на action/роутинг
-        const actionFloor = toNano('0.005');
+        // Небольшой запас на action/роутинг:
+        // если используется опциональный кошелёк — берём больший запас
+        const actionFloor = hasOptionalWallet ? toNano('0.025') : toNano('0.005');
 
         return externalFee + internalFloor + actionFloor;
       }
@@ -644,10 +645,15 @@
 
         let networkFees = 0n;
         try {
-          const hasPartner  = false;                // пока партнёр отключён кодом
+          const hasPartner = !!reqBody.optionalCommissionWallet;
           const outgoingCount = 1 + 1 + (hasPartner ? 1 : 0); // продавец + платформа (+ партнёр)
 
-          networkFees = await estimateFeesFull({ address: to, bodyB64: payloadBase64, outgoingCount });
+          networkFees = await estimateFeesFull({
+            address: to,
+            bodyB64: payloadBase64,
+            outgoingCount,
+            hasOptionalWallet: hasPartner
+          });
         } catch (e) {
           logStatus('Ошибка естимации комиссии сети: ' + (e?.message || e));
           return;

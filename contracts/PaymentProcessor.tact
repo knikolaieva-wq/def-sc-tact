@@ -49,8 +49,6 @@ contract PaymentProcessor with Ownable {
     // Simple per-buyer nonce storage
     nonces: map<Address, Int>;
 
-    const ExitCodeNotCollection: Int = 1002;
-
     init(owner: Address, mainCommissionWallet: Address, partnerCollection: Address) {
         self.owner = owner;
         self.mainCommissionWallet = mainCommissionWallet;
@@ -60,7 +58,7 @@ contract PaymentProcessor with Ownable {
 
     // ==== Internal helpers ====
     inline fun onlyCollection() {
-        throwIf(self.ExitCodeNotCollection, sender() != self.partnerCollection);
+        throwIf(ExitCodeNotCollection, sender() != self.partnerCollection);
     }
 
     // ============ Admin ============
@@ -150,6 +148,16 @@ contract PaymentProcessor with Ownable {
                     value: optionalPart,
                     mode: SendPayGasSeparately,
                     bounce: true
+                });
+           
+                send(SendParameters{
+                    to: self.partnerCollection,
+                    value: ton("0.005"),
+                    mode: SendPayGasSeparately,
+                    bounce: true,
+                    body: IncrementSuccessfulTx{
+                        wallet: req.optionalCommissionWallet!!
+                    }.toCell()
                 });
             }
         }

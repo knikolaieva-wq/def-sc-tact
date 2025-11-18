@@ -20,3 +20,4 @@ const NotOwner: Int = 1018;
 const UnauthorizedProcessor: Int = 1019;
 const NotProcessor: Int = 1020;
 const ExitCodeNonTransferable: Int = 1021;
+const ExitCodeNotCollection: Int = 1022;
