@@ -100,45 +100,49 @@ describe('PartnerNFTCollection - burn', () => {
         initialItem = blockchain.openContract(PartnerNftItem.fromAddress(initialItemAddress));
     });
 
-    it('positive - token owner can burn their NFT', async () => {
-        const burnRes = await burnFrom(alice, 0n);
-        expect(burnRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
+    describe('Positive', () => {
+        it('token owner can burn their NFT', async () => {
+            const burnRes = await burnFrom(alice, 0n);
+            expect(burnRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
 
-        expect(await collection.getTokenOf(alice.address)).toBe(-1n);
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
+            expect(await collection.getTokenOf(alice.address)).toBe(-1n);
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
 
-        const nftData = await initialItem.getGetNftData();
-        expect(nftData.init).toBe(0n);
-        const ownerAfter = await initialItem.getGetOwner();
-        expect(ownerAfter).toBeNull();
+            const nftData = await initialItem.getGetNftData();
+            expect(nftData.init).toBe(0n);
+            const ownerAfter = await initialItem.getGetOwner();
+            expect(ownerAfter).toBeNull();
+        });
+
+        it('owner can re-mint after burning', async () => {
+            await burnFrom(alice, 0n);
+
+            const newShare = 200n;
+            const newUri = 'ipfs://new';
+
+            await mintFrom(owner, { to: alice, shareBps: newShare, uri: newUri });
+
+            expect(await collection.getTokenOf(alice.address)).toBe(1n);
+            await expectItemState(1n, alice, newShare, newUri);
+        });
     });
 
-    it('positive - owner can re-mint after burning', async () => {
-        await burnFrom(alice, 0n);
+    describe('Negative', () => {
+        it('prevents non-owners from burning', async () => {
+            const res = await burnFrom(bob, 0n);
+            expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 1018 });
+            expect(await collection.getTokenOf(alice.address)).toBe(0n);
+        });
 
-        const newShare = 200n;
-        const newUri = 'ipfs://new';
+        it('rejects burning nonexistent tokens', async () => {
+            const invalidRes = await burnFrom(alice, 999n);
+            expect(invalidRes.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 1018 });
+            expect(await collection.getTokenOf(alice.address)).toBe(0n);
 
-        await mintFrom(owner, { to: alice, shareBps: newShare, uri: newUri });
-
-        expect(await collection.getTokenOf(alice.address)).toBe(1n);
-        await expectItemState(1n, alice, newShare, newUri);
-    });
-
-    it('negative - prevents non-owners from burning', async () => {
-        const res = await burnFrom(bob, 0n);
-        expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 1018 });
-        expect(await collection.getTokenOf(alice.address)).toBe(0n);
-    });
-
-    it('negative - rejects burning nonexistent tokens', async () => {
-        const invalidRes = await burnFrom(alice, 999n);
-        expect(invalidRes.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 1018 });
-        expect(await collection.getTokenOf(alice.address)).toBe(0n);
-
-        await burnFrom(alice, 0n);
-        const repeatRes = await burnFrom(alice, 0n);
-        expect(repeatRes.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 1018 });
-        expect(await collection.getTokenOf(alice.address)).toBe(-1n);
+            await burnFrom(alice, 0n);
+            const repeatRes = await burnFrom(alice, 0n);
+            expect(repeatRes.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 1018 });
+            expect(await collection.getTokenOf(alice.address)).toBe(-1n);
+        });
     });
 });

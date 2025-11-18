@@ -63,29 +63,31 @@ describe('PartnerNFTCollection - transfers & approvals', () => {
         });
     };
 
-    it('negative - disables approvals', async () => {
-        const res = await sendTransferAttempt(alice, { newOwner: alice, responseDestination: bob });
-        expect(res.transactions).toHaveTransaction({
-            to: nftItem.address,
-            aborted: true,
-            exitCode: NON_TRANSFERABLE_EXIT,
+    describe('Negative', () => {
+        it('disables approvals', async () => {
+            const res = await sendTransferAttempt(alice, { newOwner: alice, responseDestination: bob });
+            expect(res.transactions).toHaveTransaction({
+                to: nftItem.address,
+                aborted: true,
+                exitCode: NON_TRANSFERABLE_EXIT,
+            });
+
+            expect(await collection.getTokenOf(alice.address)).toBe(0n);
         });
 
-        expect(await collection.getTokenOf(alice.address)).toBe(0n);
-    });
+        it('disables direct transfers', async () => {
+            const res = await sendTransferAttempt(alice, { newOwner: bob });
+            expect(res.transactions).toHaveTransaction({
+                to: nftItem.address,
+                aborted: true,
+                exitCode: NON_TRANSFERABLE_EXIT,
+            });
 
-    it('negative - disables direct transfers', async () => {
-        const res = await sendTransferAttempt(alice, { newOwner: bob });
-        expect(res.transactions).toHaveTransaction({
-            to: nftItem.address,
-            aborted: true,
-            exitCode: NON_TRANSFERABLE_EXIT,
+            const nftData = await nftItem.getGetNftData();
+            const ownerSlice = nftData.owner_address.loadAddress();
+            expect(ownerSlice.toRawString()).toBe(alice.address.toRawString());
+            const bobState = await collection.getTokenOf(bob.address);
+            expect(bobState).toBe(-1n);
         });
-
-        const nftData = await nftItem.getGetNftData();
-        const ownerSlice = nftData.owner_address.loadAddress();
-        expect(ownerSlice.toRawString()).toBe(alice.address.toRawString());
-        const bobState = await collection.getTokenOf(bob.address);
-        expect(bobState).toBe(-1n);
     });
 });

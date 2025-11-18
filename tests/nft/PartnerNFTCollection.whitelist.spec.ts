@@ -71,48 +71,52 @@ describe('PartnerNFTCollection - whitelist', () => {
         return owner.send({ to: collection.address, value: toNano('0.1'), bounce: true, body });
     };
 
-    it('positive - owner can add and remove wallets', async () => {
-        await mintFor(alice, 100n, 'ipfs://alice');
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+    describe('Positive', () => {
+        it('owner can add and remove wallets', async () => {
+            await mintFor(alice, 100n, 'ipfs://alice');
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
 
-        const removeRes = await setWhitelist(owner, alice, false);
-        expect(removeRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
+            const removeRes = await setWhitelist(owner, alice, false);
+            expect(removeRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
 
-        const addRes = await setWhitelist(owner, alice, true);
-        expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+            const addRes = await setWhitelist(owner, alice, true);
+            expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+        });
+
+        it('isWalletWhitelisted requires both whitelist flag and balance', async () => {
+            const addRes = await setWhitelist(owner, alice, true);
+            expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
+
+            await mintFor(alice, 100n, 'ipfs://alice');
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+
+            const burnRes = await burnFrom(alice, 0n);
+            expect(burnRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
+        });
     });
 
-    it('positive - isWalletWhitelisted requires both whitelist flag and balance', async () => {
-        const addRes = await setWhitelist(owner, alice, true);
-        expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
+    describe('Negative', () => {
+        it('rejects zero address operations', async () => {
+            const addRes = await sendWhitelistRaw(true, true);
+            expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
 
-        await mintFor(alice, 100n, 'ipfs://alice');
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+            const removeRes = await sendWhitelistRaw(false, true);
+            expect(removeRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
+        });
 
-        const burnRes = await burnFrom(alice, 0n);
-        expect(burnRes.transactions).toHaveTransaction({ to: collection.address, aborted: false });
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(false);
-    });
+        it('blocks non-owners from managing the whitelist', async () => {
+            const addRes = await setWhitelist(stranger, alice, true);
+            expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
 
-    it('negative - rejects zero address operations', async () => {
-        const addRes = await sendWhitelistRaw(true, true);
-        expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
+            await mintFor(alice, 100n, 'ipfs://alice');
+            const removeRes = await setWhitelist(stranger, alice, false);
+            expect(removeRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
 
-        const removeRes = await sendWhitelistRaw(false, true);
-        expect(removeRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
-    });
-
-    it('negative - blocks non-owners from managing the whitelist', async () => {
-        const addRes = await setWhitelist(stranger, alice, true);
-        expect(addRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
-
-        await mintFor(alice, 100n, 'ipfs://alice');
-        const removeRes = await setWhitelist(stranger, alice, false);
-        expect(removeRes.transactions).toHaveTransaction({ to: collection.address, aborted: true });
-
-        expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+            expect(await collection.getIsWalletWhitelisted(alice.address)).toBe(true);
+        });
     });
 });

@@ -90,49 +90,53 @@ describe('PartnerNFTCollection - mint', () => {
         expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode });
     };
 
-    it('positive - owner can mint and sets URI/shareBps', async () => {
-        const shareBps = 8000n;
-        const uri = 'ipfs://1';
+    describe('Positive', () => {
+        it('owner can mint and sets URI/shareBps', async () => {
+            const shareBps = 8000n;
+            const uri = 'ipfs://1';
 
-        const res = await mintFrom(owner, { to: alice, shareBps, uri });
-        expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: false });
+            const res = await mintFrom(owner, { to: alice, shareBps, uri });
+            expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: false });
 
-        const tokenId = await collection.getTokenOf(alice.address);
-        expect(tokenId).toBe(0n);
-        const recordedShare = await collection.getPlatformShareBpsForWallet(alice.address);
-        expect(recordedShare).toBe(shareBps);
-        const whitelist = await collection.getIsWalletWhitelisted(alice.address);
-        expect(whitelist).toBe(true);
+            const tokenId = await collection.getTokenOf(alice.address);
+            expect(tokenId).toBe(0n);
+            const recordedShare = await collection.getPlatformShareBpsForWallet(alice.address);
+            expect(recordedShare).toBe(shareBps);
+            const whitelist = await collection.getIsWalletWhitelisted(alice.address);
+            expect(whitelist).toBe(true);
 
-        await expectItemState(0n, alice, shareBps, uri);
+            await expectItemState(0n, alice, shareBps, uri);
+        });
+
+        it('mints sequential tokenIds for unique wallets', async () => {
+            await mintFrom(owner, { to: alice, shareBps: 500n, uri: 'ipfs://alice' });
+            await mintFrom(owner, { to: bob, shareBps: 600n, uri: 'ipfs://bob' });
+
+            expect(await collection.getTokenOf(alice.address)).toBe(0n);
+            expect(await collection.getTokenOf(bob.address)).toBe(1n);
+            expect(await collection.getSuccessfulTxCountOf(alice.address)).toBe(0n);
+
+            await expectItemState(0n, alice, 500n, 'ipfs://alice');
+            await expectItemState(1n, bob, 600n, 'ipfs://bob');
+        });
     });
 
-    it('positive - mints sequential tokenIds for unique wallets', async () => {
-        await mintFrom(owner, { to: alice, shareBps: 500n, uri: 'ipfs://alice' });
-        await mintFrom(owner, { to: bob, shareBps: 600n, uri: 'ipfs://bob' });
+    describe('Negative', () => {
+        it('rejects mints from non-owner', async () => {
+            const res = await mintFrom(stranger, { to: alice, shareBps: 100n, uri: 'ipfs://1' });
+            expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 132 });
+            expect(await collection.getTokenOf(alice.address)).toBe(-1n);
+        });
 
-        expect(await collection.getTokenOf(alice.address)).toBe(0n);
-        expect(await collection.getTokenOf(bob.address)).toBe(1n);
-        expect(await collection.getSuccessfulTxCountOf(alice.address)).toBe(0n);
+        it('rejects invalid parameters', async () => {
+            await expectMintFailure(owner, { to: alice, shareBps: 10001n, uri: 'ipfs://1' }, 1013);
+            await expectMintFailure(owner, { to: alice, shareBps: -1n, uri: 'ipfs://1' }, 1013);
+            await expectMintFailure(owner, { to: alice, shareBps: 100n, uri: '' }, 1014);
+        });
 
-        await expectItemState(0n, alice, 500n, 'ipfs://alice');
-        await expectItemState(1n, bob, 600n, 'ipfs://bob');
-    });
-
-    it('negative - rejects mints from non-owner', async () => {
-        const res = await mintFrom(stranger, { to: alice, shareBps: 100n, uri: 'ipfs://1' });
-        expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: 132 });
-        expect(await collection.getTokenOf(alice.address)).toBe(-1n);
-    });
-
-    it('negative - rejects invalid parameters', async () => {
-        await expectMintFailure(owner, { to: alice, shareBps: 10001n, uri: 'ipfs://1' }, 1013);
-        await expectMintFailure(owner, { to: alice, shareBps: -1n, uri: 'ipfs://1' }, 1013);
-        await expectMintFailure(owner, { to: alice, shareBps: 100n, uri: '' }, 1014);
-    });
-
-    it('negative - enforces single token per wallet', async () => {
-        await mintFrom(owner, { to: alice, shareBps: 500n, uri: 'ipfs://1' });
-        await expectMintFailure(owner, { to: alice, shareBps: 600n, uri: 'ipfs://2' }, 1012);
+        it('enforces single token per wallet', async () => {
+            await mintFrom(owner, { to: alice, shareBps: 500n, uri: 'ipfs://1' });
+            await expectMintFailure(owner, { to: alice, shareBps: 600n, uri: 'ipfs://2' }, 1012);
+        });
     });
 });
