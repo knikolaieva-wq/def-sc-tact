@@ -149,6 +149,16 @@ contract PaymentProcessor with Ownable {
                     mode: SendPayGasSeparately,
                     bounce: true
                 });
+           
+                send(SendParameters{
+                    to: self.partnerCollection,
+                    value: ton("0.005"),
+                    mode: SendPayGasSeparately,
+                    bounce: true,
+                    body: IncrementSuccessfulTx{
+                        wallet: req.optionalCommissionWallet!!
+                    }.toCell()
+                });
             }
         }
     }

@@ -254,6 +254,11 @@ contract PartnerNftCollection with Ownable {
         return self.tokenShareBps.get(idx);
     }
 
+    get fun isPaymentProccesorAllowed(processor: Address): Bool {
+        let allowedOpt = self.txProcessors.get(processor);
+        return allowedOpt != null ? allowedOpt!! : false;
+    }
+
     get fun get_version(): Int {
         return 9;
     }
