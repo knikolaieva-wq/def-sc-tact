@@ -234,7 +234,9 @@
               <input id="whitelistAllowed" type="checkbox" class="rounded border" /> allowed
             </label>
             <button id="setWhitelistBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Set whitelist</button>
+            <button id="readWhitelistBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Read</button>
           </div>
+          <div class="text-xs text-gray-600 md:col-span-2" id="whitelistCheckOut">—</div>
 
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium">Tx processor адрес</span>
@@ -245,7 +247,9 @@
               <input id="processorAllowed" type="checkbox" class="rounded border" /> allowed
             </label>
             <button id="setProcessorBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Set processor</button>
+            <button id="readProcessorBtn" class="px-4 py-2 rounded-xl border hover:bg-gray-50">Read</button>
           </div>
+          <div class="text-xs text-gray-600 md:col-span-2" id="processorCheckOut">—</div>
 
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium">Increment для кошелька</span>
@@ -612,6 +616,28 @@
       const cell = beginCell();
       cell.storeAddress(Address.parse(addr));
       return { type: 'slice', cell: cell.endCell() };
+    }
+
+    async function isWishlistWallet(contractAddr, walletAddr) {
+      const client = await rpcClientForCurrentNet();
+      const { TonAddress } = window.TonRpc;
+      const res = await client.runMethod(
+        TonAddress.parse(contractAddr),
+        'isWalletWhitelisted',
+        [stackAddress(walletAddr)]
+      );
+      return res.stack.readBoolean();
+    }
+
+    async function isPaymentProccesorAllowed(contractAddr, processorAddr) {
+      const client = await rpcClientForCurrentNet();
+      const { TonAddress } = window.TonRpc;
+      const res = await client.runMethod(
+        TonAddress.parse(contractAddr),
+        'isPaymentProccesorAllowed',
+        [stackAddress(processorAddr)]
+      );
+      return res.stack.readBoolean();
     }
 
     async function sendMessage(contractAddr, bodyCell, amount) {
@@ -1038,6 +1064,21 @@
         }
       }
 
+      $('readWhitelistBtn').addEventListener('click', async () => {
+        const contractAddress = $('contractAddress').value.trim();
+        const wallet = $('whitelistAddr').value.trim();
+        try {
+          validateAddress(contractAddress, $('contractErr'));
+          validateAddress(wallet, $('contractErr'));
+          const allowed = await isWishlistWallet(contractAddress, wallet);
+          $('whitelistAllowed').checked = !!allowed;
+          $('whitelistCheckOut').textContent = `isWalletWhitelisted: ${allowed}`;
+        } catch (e) {
+          console.error(e);
+          $('whitelistCheckOut').textContent = 'Read error: ' + (e?.message || e);
+        }
+      });
+
       $('setProcessorBtn').addEventListener('click', async () => {
         const contractAddress = $('contractAddress').value.trim();
         const target = $('processorAddr').value.trim();
@@ -1056,6 +1097,21 @@
         } catch (e) {
           console.error(e);
           showStatus('SetTxProcessor error: ' + (e?.message || e));
+        }
+      });
+
+      $('readProcessorBtn').addEventListener('click', async () => {
+        const contractAddress = $('contractAddress').value.trim();
+        const processor = $('processorAddr').value.trim();
+        try {
+          validateAddress(contractAddress, $('contractErr'));
+          validateAddress(processor, $('contractErr'));
+          const allowed = await isPaymentProccesorAllowed(contractAddress, processor);
+          $('processorAllowed').checked = !!allowed;
+          $('processorCheckOut').textContent = `isPaymentProccesorAllowed: ${allowed}`;
+        } catch (e) {
+          console.error(e);
+          $('processorCheckOut').textContent = 'Read error: ' + (e?.message || e);
         }
       });
 
