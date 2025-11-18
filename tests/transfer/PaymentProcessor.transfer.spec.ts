@@ -3,7 +3,7 @@
 import { Blockchain, TreasuryContract } from '@ton/sandbox';
 import type { SandboxContract, SendMessageResult } from '@ton/sandbox';
 import { toNano, Address } from '@ton/core';
-import { PaymentProcessor } from '../build/PaymentProcessor_PaymentProcessor';
+import { PaymentProcessor } from '../../build/transfer/PaymentProcessor_PaymentProcessor';
 import '@ton/test-utils';
 
 describe('PaymentProcessor - transfer', () => {

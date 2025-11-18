@@ -3,10 +3,10 @@
 import { Blockchain, TreasuryContract, printTransactionFees } from '@ton/sandbox';
 import type { SandboxContract } from '@ton/sandbox';
 import { toNano, Address } from '@ton/core';
-import { PaymentProcessor } from '../build/PaymentProcessor_PaymentProcessor';
+import { PaymentProcessor } from '../../build/transfer/PaymentProcessor_PaymentProcessor';
 import '@ton/test-utils';
 
-describe.skip('PaymentProcessorTIP - maxfee', () => {
+describe.skip('PaymentProcessor - maxfee', () => {
     let blockchain: Blockchain;
     let owner: SandboxContract<TreasuryContract>;
     let buyer: SandboxContract<TreasuryContract>;
