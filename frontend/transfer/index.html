@@ -122,8 +122,15 @@
             class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
             платежа</button>
           <button id="sendBtn"
-            class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled>Оплатить (TonConnect)</button>
+            class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled>
+            <span id="sendBtnText">Оплатить</span>
+            <svg id="sendBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
+            </svg>
+          </button>
+          <div id="paymentExplorer" class="text-sm text-emerald-700 font-medium hidden"></div>
         </div>
 
         <div class="grid md:grid-cols-2 gap-6">
@@ -552,6 +559,9 @@
       const previewEl = document.getElementById('preview');
       const previewOnchainBtn = document.getElementById('previewOnchainBtn');
       const sendBtn = document.getElementById('sendBtn');
+      const sendBtnSpinner = document.getElementById('sendBtnSpinner');
+      const sendBtnText = document.getElementById('sendBtnText');
+      const paymentExplorerEl = document.getElementById('paymentExplorer');
 
       const currentBpsEl = document.getElementById('currentBps');
       const currentOwnerEl = document.getElementById('currentOwner');
@@ -562,6 +572,51 @@
       const nonceAddrEl = document.getElementById('nonceAddr');
       const nonceBtn = document.getElementById('nonceBtn');
       const nonceOut = document.getElementById('nonceOut');
+
+      function setSendButtonLoading(isLoading) {
+        if (!sendBtn) return;
+        if (isLoading) {
+          sendBtn.dataset.restoreDisabled = sendBtn.disabled ? '1' : '0';
+          sendBtn.disabled = true;
+          sendBtnSpinner?.classList.remove('hidden');
+          if (sendBtnText) sendBtnText.textContent = 'Отправляем…';
+        } else {
+          const restore = sendBtn.dataset.restoreDisabled === '1';
+          sendBtn.disabled = restore;
+          sendBtnSpinner?.classList.add('hidden');
+          if (sendBtnText) sendBtnText.textContent = 'Оплатить';
+        }
+      }
+
+      function showPaymentExplorerLink(hash, fallbackAddress) {
+        if (!paymentExplorerEl) return;
+        if (!hash) {
+          paymentExplorerEl.classList.add('hidden');
+          paymentExplorerEl.innerHTML = '';
+          return;
+        }
+        if (!hash) {
+          paymentExplorerEl.classList.add('hidden');
+          paymentExplorerEl.innerHTML = '';
+          return;
+        }
+        const url = `https://testnet.tonviewer.com/transaction/${hash}`;
+                paymentExplorerEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
+        paymentExplorerEl.classList.remove('hidden');
+      }
+
+      async function fetchLastTxHash(address) {
+        try {
+          const client = await rpcClientForCurrentNet();
+          const txs = await client.getTransactions(TonAddress.parse(address), { limit: 1 });
+          if (txs.length > 0) {
+            return txs[0].hash().toString('hex');
+          }
+        } catch (e) {
+          console.error('fetchLastTxHash error:', e);
+        }
+        return null;
+      }
 
       // ---------- PREVIEW (on-chain only) ----------
       previewOnchainBtn.addEventListener('click', async () => {
@@ -604,6 +659,8 @@
         if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
 
         const buyerAddrFromWallet = currentWallet.account.address;
+        setSendButtonLoading(true);
+        showPaymentExplorerLink(null, null);
 
         // Get real commission from contract
         let totalPay, amount;
@@ -624,6 +681,7 @@
           logStatus(`Commission: ${fromNano(commission)} TON`);
         } catch (e) {
           logStatus('Ошибка получения комиссии: ' + (e?.message || e));
+          setSendButtonLoading(false);
           return;
         }
 
@@ -640,6 +698,7 @@
           payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
         } catch (e) {
           logStatus('payload error: ' + (e?.message || e));
+          setSendButtonLoading(false);
           return;
         }
 
@@ -656,6 +715,7 @@
           });
         } catch (e) {
           logStatus('Ошибка естимации комиссии сети: ' + (e?.message || e));
+          setSendButtonLoading(false);
           return;
         }
         console.log('Estimated network fees:', fromNano(networkFees), 'TON');
@@ -677,8 +737,15 @@
           await tonConnectUI.sendTransaction(tx);
           logStatus('Платёж отправлен.');
           logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
+          setTimeout(async () => {
+            const hash = await fetchLastTxHash(currentWallet.account.address);
+            showPaymentExplorerLink(hash, to);
+          }, 4000);
         } catch (e) {
           logStatus('Ошибка/отмена платежа: ' + (e?.message || e));
+          showPaymentExplorerLink(null, null);
+        } finally {
+          setSendButtonLoading(false);
         }
       });
 
@@ -769,6 +836,10 @@
         const res = await tonConnectUI.sendTransaction(tx);
         logStatus('Админ-транзакция отправлена.');
         logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
+        setTimeout(async () => {
+          const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+          showPaymentExplorerLink(hash, to);
+        }, 4000);
         logStatus('Ожидание подтверждения (10 сек)...');
 
         // Автообновление конфига через 10 секунд
