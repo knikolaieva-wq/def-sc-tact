@@ -676,6 +676,7 @@
           logStatus('Отправляем платёж…');
           await tonConnectUI.sendTransaction(tx);
           logStatus('Платёж отправлен.');
+          logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
         } catch (e) {
           logStatus('Ошибка/отмена платежа: ' + (e?.message || e));
         }
@@ -767,6 +768,7 @@
         logStatus('Отправляем админ-транзакцию…');
         const res = await tonConnectUI.sendTransaction(tx);
         logStatus('Админ-транзакция отправлена.');
+        logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
         logStatus('Ожидание подтверждения (10 сек)...');
 
         // Автообновление конфига через 10 секунд

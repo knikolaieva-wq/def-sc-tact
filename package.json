@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "build:contract": "tact -c tact.config.json",
-    "deploy:transfer:testnet": "node scripts/transfer/deploy.mjs --network testnet",
-    "deploy:nft:testnet": "node scripts/nft/deploy.mjs --network testnet --salt $(openssl rand -hex 8)",
+    "build": "npx blueprint build",
+    "deploy": "npx blueprint run",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "dev": "node scripts/dev-server.mjs"
   },
