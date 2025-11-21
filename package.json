@@ -2,14 +2,13 @@
   "name": "ton-payment-processor",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "build:contract": "tact -c tact.config.json",
-    "deploy:transfer:testnet": "node scripts/transfer/deploy.mjs --network testnet",
-    "deploy:nft:testnet": "node scripts/nft/deploy.mjs --network testnet --salt $(openssl rand -hex 8)",
     "deploy:jetton": "tsx scripts/jetton/deploy.ts --network testnet",
     "mint:jetton": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=scripts/tsconfig.json npx blueprint run --testnet --tonconnect jetton/mint",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "build": "npx blueprint build",
+    "deploy": "npx blueprint run",
     "dev": "node scripts/dev-server.mjs"
   },
   "ts-node": {

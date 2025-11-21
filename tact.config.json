@@ -3,20 +3,32 @@
     {
       "name": "PaymentProcessor",
       "path": "contracts/PaymentProcessor.tact",
-      "output": "build/transfer",
-      "bindings": "js"
+      "output": "./build/transfer",
+      "options":{
+            "debug": true,
+            "external": true,
+            "masterchain": true
+        }
     },
     {
       "name": "PartnerNftCollection",
       "path": "contracts/PartnerNftCollection.tact",
-      "output": "build/nft",
-      "bindings": "js"
+      "output": "./build/nft",
+      "options":{
+            "debug": true,
+            "external": true,
+            "masterchain": true
+        }
     },
     {
       "name": "PartnerNftItem",
       "path": "contracts/PartnerNftItem.tact",
-      "output": "build/nft",
-      "bindings": "js"
+      "output": "./build/nft",
+      "options":{
+            "debug": true,
+            "external": true,
+            "masterchain": true
+        }
     },
     {
       "name": "Jetton",
