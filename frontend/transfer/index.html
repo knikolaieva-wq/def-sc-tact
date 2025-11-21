@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Payment (TON) — Pay + Admin + Views</title>
+  <title>Payment (TON & MUSDT) — Pay + Admin + Views</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
   <script src="/config.js"></script>
@@ -44,7 +44,7 @@
   <div class="max-w-6xl mx-auto p-6 space-y-8">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-3xl font-bold">Payment (TON)</h1>
+        <h1 class="text-3xl font-bold">Payment (TON & MUSDT)</h1>
         <p id="netInfo" class="text-gray-600">Сеть: TON Testnet</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
@@ -71,155 +71,336 @@
         кодируются локально.
       </div>
 
-      <!-- === ПЛАТЁЖ === -->
-      <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold">Платёж</h2>
-          <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">User flow</span>
-        </div>
+      <div class="inline-flex rounded-2xl border border-gray-200 bg-white shadow p-1 text-sm font-medium">
+        <button data-tab="ton"
+          class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 bg-black text-white">TON</button>
+        <button data-tab="musdt"
+          class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 text-gray-800">MUSDT</button>
+      </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
-            <input id="contractAddress"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Адрес продавца (seller)</span>
-            <input id="seller"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
-            <input id="partner"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="(опц.) EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Сумма к оплате (TON)</span>
-            <input id="amountTon" type="number" min="0" step="0.000000001"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="1.5" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Кто платит комиссию</span>
-            <select id="buyerPays"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
-              <option value="true">Покупатель</option>
-              <option value="false">Продавец</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <button id="previewOnchainBtn"
-            class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
-            платежа</button>
-          <button id="sendBtn"
-            class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled>
-            <span id="sendBtnText">Оплатить</span>
-            <svg id="sendBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
-            </svg>
-          </button>
-          <div id="paymentExplorer" class="text-sm text-emerald-700 font-medium hidden"></div>
-        </div>
-
-        <div class="grid md:grid-cols-2 gap-6">
-          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
-            <div class="font-semibold mb-2">Предпросмотр</div>
-            <pre id="preview" class="text-sm"></pre>
+      <div id="tab-ton" class="space-y-8">
+        <!-- === ПЛАТЁЖ === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Платёж</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">User flow</span>
           </div>
-          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
-            <div class="font-semibold mb-2">Nonce</div>
-            <div class="flex items-center gap-3 mb-2">
-              <input id="nonceAddr"
-                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
-                placeholder="EQC… (по умолчанию — адрес кошелька)" />
-              <button id="nonceBtn"
-                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
-                nonceOf</button>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
+              <input id="contractAddress"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес продавца (seller)</span>
+              <input id="seller"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
+              <input id="partner"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="(опц.) EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Сумма к оплате (TON)</span>
+              <input id="amountTon" type="number" min="0" step="0.000000001"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="1.5" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Кто платит комиссию</span>
+              <select id="buyerPays"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
+                <option value="true">Покупатель</option>
+                <option value="false">Продавец</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="previewOnchainBtn"
+              class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
+              платежа</button>
+            <button id="sendBtn"
+              class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled>
+              <span id="sendBtnText">Оплатить</span>
+              <svg id="sendBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
+              </svg>
+            </button>
+            <div id="paymentExplorer" class="text-sm text-emerald-700 font-medium hidden"></div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Предпросмотр</div>
+              <pre id="preview" class="text-sm"></pre>
             </div>
-            <pre id="nonceOut" class="text-sm"></pre>
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Nonce</div>
+              <div class="flex items-center gap-3 mb-2">
+                <input id="nonceAddr"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC… (по умолчанию — адрес кошелька)" />
+                <button id="nonceBtn"
+                  class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                  nonceOf</button>
+              </div>
+              <pre id="nonceOut" class="text-sm"></pre>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- === АДМИНКА === -->
-      <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold">Админка</h2>
-          <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="flex items-end gap-3 md:col-span-2">
-            <button id="readConfigBtn"
-              class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
-              конфиг</button>
-            <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+        <!-- === АДМИНКА === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Админка</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="readConfigBtn"
+                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                конфиг</button>
+              <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Текущий bps</span>
+              <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Овнер</span>
+              <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый bps</span>
+              <input id="newBps" type="number" min="0" max="10000"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="например, 35" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetBpsBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Установить bps</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Вывести все средства на адрес</span>
+              <input id="withdrawTo"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendWithdrawAllBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Вывести</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый овнер</span>
+              <input id="newOwner"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetOwnerBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Сменить овнера</button>
+            </div>
           </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Текущий bps</span>
-            <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
-              disabled />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Овнер</span>
-            <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
-              disabled />
-          </label>
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+            <div class="font-semibold mb-2">Статус / Логи</div>
+            <pre id="status" class="text-sm"></pre>
+          </div>
+        </section>
+      </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Новый bps</span>
-            <input id="newBps" type="number" min="0" max="10000"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="например, 35" />
-          </label>
-          <div class="flex items-end gap-3">
-            <button id="sendSetBpsBtn"
-              class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled>Установить bps</button>
+      <div id="tab-musdt" class="space-y-8 hidden">
+        <!-- === MUSDT ПЛАТЁЖ === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Платёж (MUSDT)</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500 text-white">Jetton flow</span>
           </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Вывести все средства на адрес</span>
-            <input id="withdrawTo"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-          <div class="flex items-end gap-3">
-            <button id="sendWithdrawAllBtn"
-              class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled>Вывести</button>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес контракта (PaymentProcessorUSDT)</span>
+              <input id="contractAddressMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">MUSDT master (для вычисления вашего jetton-кошелька)</span>
+              <input id="musdtMaster"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес продавца (seller)</span>
+              <input id="sellerMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
+              <input id="partnerMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="(опц.) EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Сумма к оплате (MUSDT)</span>
+              <input id="amountMusdt" type="number" min="0" step="0.000001"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="10.5" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Десятичных знаков у MUSDT</span>
+              <input id="musdtDecimals" type="number" min="0" max="18"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="например, 9" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Кто платит комиссию</span>
+              <select id="buyerPaysMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
+                <option value="true">Покупатель</option>
+                <option value="false">Продавец</option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Jetton-кошелёк контракта (из getConfig)</span>
+              <input id="musdtWalletContract" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                placeholder="Прочитайте конфиг" disabled />
+            </label>
           </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Новый овнер</span>
-            <input id="newOwner"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-          <div class="flex items-end gap-3">
-            <button id="sendSetOwnerBtn"
-              class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled>Сменить овнера</button>
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="previewMusdtBtn"
+              class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
+              платежа</button>
+            <button id="sendMusdtBtn"
+              class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled>
+              <span id="sendMusdtBtnText">Оплатить MUSDT</span>
+              <svg id="sendMusdtBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
+              </svg>
+            </button>
+            <div id="paymentExplorerMusdt" class="text-sm text-emerald-700 font-medium hidden"></div>
           </div>
-        </div>
 
-        <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
-          <div class="font-semibold mb-2">Статус / Логи</div>
-          <pre id="status" class="text-sm"></pre>
-        </div>
-      </section>
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Предпросмотр</div>
+              <pre id="previewMusdt" class="text-sm"></pre>
+            </div>
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Nonce</div>
+              <div class="flex items-center gap-3 mb-2">
+                <input id="nonceAddrMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC… (по умолчанию — адрес кошелька)" />
+                <button id="nonceBtnMusdt"
+                  class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                  nonceOf</button>
+              </div>
+              <pre id="nonceOutMusdt" class="text-sm"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- === MUSDT АДМИНКА === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Админка (MUSDT)</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500 text-white">Owner-only</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="readConfigMusdtBtn"
+                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                конфиг</button>
+              <div id="ownerCheckMusdt" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Текущий bps</span>
+              <input id="currentBpsMusdt" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Овнер</span>
+              <input id="currentOwnerMusdt" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Jetton-кошелёк контракта</span>
+              <input id="currentMusdtWallet" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый bps</span>
+              <input id="newBpsMusdt" type="number" min="0" max="10000"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="например, 35" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetBpsMusdtBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Установить bps</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Вывести все средства на адрес</span>
+              <input id="withdrawToMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendWithdrawAllMusdtBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Вывести</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый овнер</span>
+              <input id="newOwnerMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetOwnerMusdtBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Сменить овнера</button>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+            <div class="font-semibold mb-2">Статус / Логи</div>
+            <pre id="statusMusdt" class="text-sm"></pre>
+          </div>
+        </section>
+      </div>
+
     </main>
 
     <footer class="text-xs text-gray-500">
@@ -254,20 +435,106 @@
       setOwner: 3266583875        // 0xc2b41d43 - SetOwner
     };
 
-    // ---------- LOCALSTORAGE HELPERS ----------
+    // ---------- CONSTANTS / HELPERS ----------
+    const JETTON_TRANSFER_OP = 0xf8a7ea5;
+    const MUSDT_MSG_VALUE = toNano('0.05');
+    const MUSDT_PING_VALUE = toNano('0.005');
+    const MUSDT_GAS_HEADROOM = toNano('0.05'); // запас для jetton-кошелька отправителя
+    const DEFAULT_MUSDT_DECIMALS = 9;
+
+    const tabSections = {
+      ton: document.getElementById('tab-ton'),
+      musdt: document.getElementById('tab-musdt')
+    };
+    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+    let currentTab = 'ton';
+
+    function switchTab(tab) {
+      if (!tabSections[tab]) return;
+      currentTab = tab;
+      Object.entries(tabSections).forEach(([key, el]) => {
+        if (el) el.classList.toggle('hidden', key !== tab);
+      });
+      tabButtons.forEach(btn => {
+        const active = btn.dataset.tab === tab;
+        btn.classList.toggle('bg-black', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('text-gray-800', !active);
+      });
+      saveFormData();
+    }
+
+    tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
     const STORAGE_KEY = 'ton_payment_form_data';
+    const statusTonEl = document.getElementById('status');
+    const statusMusdtEl = document.getElementById('statusMusdt');
+
+    function logStatusTo(el, msg) {
+      if (!el) return;
+      el.textContent += (el.textContent ? '\n' : '') + msg;
+      console.log(msg);
+    }
+    const logStatus = (msg) => logStatusTo(statusTonEl, msg);
+    const logStatusMusdt = (msg) => logStatusTo(statusMusdtEl, msg);
+
+    function formatUnits(value, decimals) {
+      const negative = value < 0n;
+      const abs = negative ? -value : value;
+      const factor = 10n ** BigInt(decimals);
+      const intPart = abs / factor;
+      const fracPart = abs % factor;
+      if (decimals === 0) return `${negative ? '-' : ''}${abs.toString()}`;
+      const fracStr = fracPart.toString().padStart(decimals, '0').replace(/0+$/, '');
+      return `${negative ? '-' : ''}${intPart.toString()}${fracStr ? '.' + fracStr : ''}`;
+    }
+
+    function parseDecimalsSafe(value) {
+      const d = Number(value ?? DEFAULT_MUSDT_DECIMALS);
+      if (!Number.isInteger(d) || d < 0 || d > 18) throw new Error('Decimals должны быть 0..18');
+      return d;
+    }
+
+    function toJettonUnits(amountStr, decimals) {
+      const raw = (amountStr || '').toString().trim();
+      if (!raw) return 0n;
+      const normalized = raw.replace(',', '.');
+      const parts = normalized.split('.');
+      if (parts.length > 2) throw new Error('Некорректная сумма');
+      const [intPartRaw, fracRaw = ''] = parts;
+      if (!/^\d*$/.test(intPartRaw) || !/^\d*$/.test(fracRaw)) throw new Error('Только числа');
+      const intPart = BigInt(intPartRaw || '0');
+      const fracPadded = (fracRaw + '0'.repeat(decimals)).slice(0, decimals);
+      const frac = BigInt(fracPadded || '0');
+      return intPart * 10n ** BigInt(decimals) + frac;
+    }
 
     function saveFormData() {
       const data = {
-        contractAddress: document.getElementById('contractAddress').value,
-        seller: document.getElementById('seller').value,
-        partner: document.getElementById('partner').value,
-        amountTon: document.getElementById('amountTon').value,
-        buyerPays: document.getElementById('buyerPays').value,
-        newBps: document.getElementById('newBps').value,
-        withdrawTo: document.getElementById('withdrawTo').value,
-        newOwner: document.getElementById('newOwner').value,
-        tonNetwork: document.getElementById('tonNetwork').value
+        ton: {
+          contractAddress: document.getElementById('contractAddress').value,
+          seller: document.getElementById('seller').value,
+          partner: document.getElementById('partner').value,
+          amountTon: document.getElementById('amountTon').value,
+          buyerPays: document.getElementById('buyerPays').value,
+          newBps: document.getElementById('newBps').value,
+          withdrawTo: document.getElementById('withdrawTo').value,
+          newOwner: document.getElementById('newOwner').value,
+        },
+        musdt: {
+          contractAddress: document.getElementById('contractAddressMusdt').value,
+          musdtMaster: document.getElementById('musdtMaster').value,
+          seller: document.getElementById('sellerMusdt').value,
+          partner: document.getElementById('partnerMusdt').value,
+          amount: document.getElementById('amountMusdt').value,
+          decimals: document.getElementById('musdtDecimals').value,
+          buyerPays: document.getElementById('buyerPaysMusdt').value,
+          newBps: document.getElementById('newBpsMusdt').value,
+          withdrawTo: document.getElementById('withdrawToMusdt').value,
+          newOwner: document.getElementById('newOwnerMusdt').value,
+        },
+        tonNetwork: document.getElementById('tonNetwork').value,
+        activeTab: currentTab,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
@@ -278,19 +545,33 @@
         if (!saved) return;
 
         const data = JSON.parse(saved);
+        const ton = data.ton || data; // совместимость со старой схемой
+        if (ton.contractAddress) document.getElementById('contractAddress').value = ton.contractAddress;
+        if (ton.seller) document.getElementById('seller').value = ton.seller;
+        if (ton.partner) document.getElementById('partner').value = ton.partner;
+        if (ton.amountTon) document.getElementById('amountTon').value = ton.amountTon;
+        if (ton.buyerPays) document.getElementById('buyerPays').value = ton.buyerPays;
+        if (ton.newBps) document.getElementById('newBps').value = ton.newBps;
+        if (ton.withdrawTo) document.getElementById('withdrawTo').value = ton.withdrawTo;
+        if (ton.newOwner) document.getElementById('newOwner').value = ton.newOwner;
 
-        if (data.contractAddress) document.getElementById('contractAddress').value = data.contractAddress;
-        if (data.seller) document.getElementById('seller').value = data.seller;
-        if (data.partner) document.getElementById('partner').value = data.partner;
-        if (data.amountTon) document.getElementById('amountTon').value = data.amountTon;
-        if (data.buyerPays) document.getElementById('buyerPays').value = data.buyerPays;
-        if (data.newBps) document.getElementById('newBps').value = data.newBps;
-        if (data.withdrawTo) document.getElementById('withdrawTo').value = data.withdrawTo;
-        if (data.newOwner) document.getElementById('newOwner').value = data.newOwner;
+        const musdt = data.musdt || {};
+        if (musdt.contractAddress) document.getElementById('contractAddressMusdt').value = musdt.contractAddress;
+        if (musdt.musdtMaster) document.getElementById('musdtMaster').value = musdt.musdtMaster;
+        if (musdt.seller) document.getElementById('sellerMusdt').value = musdt.seller;
+        if (musdt.partner) document.getElementById('partnerMusdt').value = musdt.partner;
+        if (musdt.amount) document.getElementById('amountMusdt').value = musdt.amount;
+        if (musdt.decimals) document.getElementById('musdtDecimals').value = musdt.decimals;
+        if (musdt.buyerPays) document.getElementById('buyerPaysMusdt').value = musdt.buyerPays;
+        if (musdt.newBps) document.getElementById('newBpsMusdt').value = musdt.newBps;
+        if (musdt.withdrawTo) document.getElementById('withdrawToMusdt').value = musdt.withdrawTo;
+        if (musdt.newOwner) document.getElementById('newOwnerMusdt').value = musdt.newOwner;
+
         if (data.tonNetwork) {
           document.getElementById('tonNetwork').value = data.tonNetwork;
           document.getElementById('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
         }
+        if (data.activeTab) switchTab(data.activeTab);
 
         console.log('Form data loaded from localStorage');
       } catch (e) {
@@ -301,7 +582,9 @@
     function attachAutoSave() {
       const inputs = [
         'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays',
-        'newBps', 'withdrawTo', 'newOwner', 'tonNetwork'
+        'newBps', 'withdrawTo', 'newOwner', 'tonNetwork',
+        'contractAddressMusdt', 'musdtMaster', 'sellerMusdt', 'partnerMusdt', 'amountMusdt',
+        'musdtDecimals', 'buyerPaysMusdt', 'newBpsMusdt', 'withdrawToMusdt', 'newOwnerMusdt'
       ];
 
       inputs.forEach(id => {
@@ -311,13 +594,6 @@
           el.addEventListener('change', saveFormData);
         }
       });
-    }
-
-    function logStatus(msg) {
-      const el = document.getElementById('status');
-      if (!el) return;
-      el.textContent += (el.textContent ? '\n' : '') + msg;
-      console.log(msg);
     }
 
     // Wait for libs to load
@@ -339,7 +615,7 @@
 
     // Initialize app after libs loaded
     waitForLibs().then(() => {
-      const { beginCell, Address, Cell } = window.TonCore;
+      const { beginCell, Address, Cell, TupleBuilder } = window.TonCore;
       const { TonClient, TonAddress, getHttpEndpoint } = window.TonRpc;
 
       logStatus('Библиотеки загружены');
@@ -473,7 +749,10 @@
         }
 
         // Управление кнопками
-        const buttons = ['sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn'];
+        const buttons = [
+          'sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn',
+          'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn'
+        ];
         buttons.forEach((btnId) => {
           const btn = document.getElementById(btnId);
           if (btn) {
@@ -486,23 +765,13 @@
 
         // Автозаполнение nonce address - используем friendly формат
         const nonceAddr = document.getElementById('nonceAddr');
-        if (enable && nonceAddr) {
-          // Преобразуем hex формат в friendly, если нужно
+        const nonceAddrMusdt = document.getElementById('nonceAddrMusdt');
+        if (enable) {
           try {
             const addr = wallet.account.address;
-            let friendlyAddr;
-
-            if (addr.includes(':')) {
-              // Преобразуем 0:hex в EQ формат
-              friendlyAddr = Address.parse(addr).toString();
-            } else {
-              friendlyAddr = addr;
-            }
-
-            // Заполняем только если пусто
-            if (!nonceAddr.value) {
-              nonceAddr.value = friendlyAddr;
-            }
+            const friendlyAddr = addr.includes(':') ? Address.parse(addr).toString() : addr;
+            if (nonceAddr && !nonceAddr.value) nonceAddr.value = friendlyAddr;
+            if (nonceAddrMusdt && !nonceAddrMusdt.value) nonceAddrMusdt.value = friendlyAddr;
           } catch (e) {
             console.error('Failed to parse wallet address:', e);
           }
@@ -573,6 +842,33 @@
       const nonceBtn = document.getElementById('nonceBtn');
       const nonceOut = document.getElementById('nonceOut');
 
+      const contractAddressMusdtEl = document.getElementById('contractAddressMusdt');
+      const musdtMasterEl = document.getElementById('musdtMaster');
+      const sellerMusdtEl = document.getElementById('sellerMusdt');
+      const partnerMusdtEl = document.getElementById('partnerMusdt');
+      const amountMusdtEl = document.getElementById('amountMusdt');
+      const musdtDecimalsEl = document.getElementById('musdtDecimals');
+      const buyerPaysMusdtEl = document.getElementById('buyerPaysMusdt');
+      const musdtWalletContractEl = document.getElementById('musdtWalletContract');
+
+      const previewMusdtEl = document.getElementById('previewMusdt');
+      const previewMusdtBtn = document.getElementById('previewMusdtBtn');
+      const sendMusdtBtn = document.getElementById('sendMusdtBtn');
+      const sendMusdtBtnSpinner = document.getElementById('sendMusdtBtnSpinner');
+      const sendMusdtBtnText = document.getElementById('sendMusdtBtnText');
+      const paymentExplorerMusdtEl = document.getElementById('paymentExplorerMusdt');
+
+      const currentBpsMusdtEl = document.getElementById('currentBpsMusdt');
+      const currentOwnerMusdtEl = document.getElementById('currentOwnerMusdt');
+      const currentMusdtWalletEl = document.getElementById('currentMusdtWallet');
+      const newBpsMusdtEl = document.getElementById('newBpsMusdt');
+      const withdrawToMusdtEl = document.getElementById('withdrawToMusdt');
+      const newOwnerMusdtEl = document.getElementById('newOwnerMusdt');
+
+      const nonceAddrMusdtEl = document.getElementById('nonceAddrMusdt');
+      const nonceBtnMusdt = document.getElementById('nonceBtnMusdt');
+      const nonceOutMusdt = document.getElementById('nonceOutMusdt');
+
       function setSendButtonLoading(isLoading) {
         if (!sendBtn) return;
         if (isLoading) {
@@ -588,21 +884,32 @@
         }
       }
 
-      function showPaymentExplorerLink(hash, fallbackAddress) {
-        if (!paymentExplorerEl) return;
+      function setSendMusdtButtonLoading(isLoading) {
+        if (!sendMusdtBtn) return;
+        if (isLoading) {
+          sendMusdtBtn.dataset.restoreDisabled = sendMusdtBtn.disabled ? '1' : '0';
+          sendMusdtBtn.disabled = true;
+          sendMusdtBtnSpinner?.classList.remove('hidden');
+          if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Отправляем…';
+        } else {
+          const restore = sendMusdtBtn.dataset.restoreDisabled === '1';
+          sendMusdtBtn.disabled = restore;
+          sendMusdtBtnSpinner?.classList.add('hidden');
+          if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Оплатить MUSDT';
+        }
+      }
+
+      function showPaymentExplorerLink(hash, fallbackAddress, targetEl = paymentExplorerEl) {
+        if (!targetEl) return;
         if (!hash) {
-          paymentExplorerEl.classList.add('hidden');
-          paymentExplorerEl.innerHTML = '';
+          targetEl.classList.add('hidden');
+          targetEl.innerHTML = '';
           return;
         }
-        if (!hash) {
-          paymentExplorerEl.classList.add('hidden');
-          paymentExplorerEl.innerHTML = '';
-          return;
-        }
-        const url = `https://testnet.tonviewer.com/transaction/${hash}`;
-                paymentExplorerEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
-        paymentExplorerEl.classList.remove('hidden');
+        const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+        const url = `${baseExplorer}/transaction/${hash}`;
+        targetEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
+        targetEl.classList.remove('hidden');
       }
 
       async function fetchLastTxHash(address) {
@@ -616,6 +923,20 @@
           console.error('fetchLastTxHash error:', e);
         }
         return null;
+      }
+
+      async function computeJettonWallet(masterAddr, ownerAddr) {
+        const client = await rpcClientForCurrentNet();
+        const tb = new TupleBuilder();
+        tb.writeAddress(Address.parse(ownerAddr));
+        const res = await client.runMethod(TonAddress.parse(masterAddr), 'get_wallet_address', tb.build());
+        return res.stack.readAddress().toString({ bounceable: true });
+      }
+
+      function calcForwardTonForMusdt({ hasPartner, commissionPositive }) {
+        const transfersCount = 1 + (commissionPositive ? 1 : 0) + (hasPartner ? 1 : 0);
+        const pingValue = hasPartner ? MUSDT_PING_VALUE : 0n;
+        return MUSDT_MSG_VALUE * BigInt(transfersCount) + pingValue;
       }
 
       // ---------- PREVIEW (on-chain only) ----------
@@ -648,6 +969,37 @@
 ========================`;
         } catch (e) {
           previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
+          console.error(e);
+        }
+      });
+
+      // ---------- PREVIEW MUSDT ----------
+      previewMusdtBtn.addEventListener('click', async () => {
+        try {
+          const addr = (contractAddressMusdtEl.value || '').trim();
+          if (!addr) throw new Error('Укажите адрес контракта');
+
+          const decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
+          const amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
+          const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
+
+          const client = await rpcClientForCurrentNet();
+          const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
+            { type: 'int', value: amount },
+            { type: 'int', value: buyerPays }
+          ]);
+
+          const commission = BigInt(res.stack.readNumber());
+          const totalPay = BigInt(res.stack.readNumber());
+
+          previewMusdtEl.textContent =
+            `==== PAYMENT PREVIEW ====
+Сумма:           ${formatUnits(amount, decimals)} MUSDT
+Комиссия:        ${formatUnits(commission, decimals)} MUSDT
+Итого к оплате:  ${formatUnits(totalPay, decimals)} MUSDT
+========================`;
+        } catch (e) {
+          previewMusdtEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
           console.error(e);
         }
       });
@@ -736,7 +1088,8 @@
           logStatus('Отправляем платёж…');
           await tonConnectUI.sendTransaction(tx);
           logStatus('Платёж отправлен.');
-          logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
+          const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+          logStatus(`Tx explorer: ${baseExplorer}/${to}`);
           setTimeout(async () => {
             const hash = await fetchLastTxHash(currentWallet.account.address);
             showPaymentExplorerLink(hash, to);
@@ -746,6 +1099,145 @@
           showPaymentExplorerLink(null, null);
         } finally {
           setSendButtonLoading(false);
+        }
+      });
+
+      // ---------- SEND MUSDT payment ----------
+      sendMusdtBtn.addEventListener('click', async () => {
+        const to = (contractAddressMusdtEl.value || '').trim();
+        if (!to) { alert('Укажите адрес контракта'); return; }
+        if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
+
+        const master = (musdtMasterEl.value || '').trim();
+        if (!master) { alert('Укажите MUSDT master'); return; }
+
+        let decimals;
+        try {
+          decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
+        } catch (e) {
+          alert(e.message);
+          return;
+        }
+
+        let amount;
+        try {
+          amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
+        } catch (e) {
+          alert(e?.message || e);
+          return;
+        }
+
+        if (amount <= 0n) { alert('Сумма должна быть > 0'); return; }
+
+        const buyerAddrFromWallet = currentWallet.account.address;
+        const buyerFriendly = buyerAddrFromWallet.includes(':')
+          ? Address.parse(buyerAddrFromWallet).toString()
+          : buyerAddrFromWallet;
+        setSendMusdtButtonLoading(true);
+        showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
+
+        let commission = 0n;
+        let totalPay = 0n;
+        try {
+          const client = await rpcClientForCurrentNet();
+          const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
+
+          const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
+            { type: 'int', value: amount },
+            { type: 'int', value: buyerPays }
+          ]);
+
+          commission = BigInt(res.stack.readNumber());
+          totalPay = BigInt(res.stack.readNumber());
+
+          logStatusMusdt(`Amount: ${formatUnits(amount, decimals)} MUSDT`);
+          logStatusMusdt(`Commission: ${formatUnits(commission, decimals)} MUSDT`);
+        } catch (e) {
+          logStatusMusdt('Ошибка получения комиссии: ' + (e?.message || e));
+          setSendMusdtButtonLoading(false);
+          return;
+        }
+
+        const reqBody = {
+          buyer: buyerFriendly,
+          seller: sellerMusdtEl.value.trim(),
+          amount: amount.toString(),
+          buyerPaysCommission: buyerPaysMusdtEl.value === 'true',
+          optionalCommissionWallet: (partnerMusdtEl.value || '').trim() || null
+        };
+
+        let payloadBase64 = '';
+        try {
+          payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
+        } catch (e) {
+          logStatusMusdt('payload error: ' + (e?.message || e));
+          setSendMusdtButtonLoading(false);
+          return;
+        }
+
+        let musdtWalletAddr = (musdtWalletContractEl.value || '').trim();
+        try {
+          if (!musdtWalletAddr) {
+            const cfg = await readConfigMusdt({ silent: true });
+            musdtWalletAddr = cfg?.musdtWallet || '';
+          }
+        } catch (e) {
+          logStatusMusdt('Не удалось прочитать musdtWallet: ' + (e?.message || e));
+        }
+        if (!musdtWalletAddr) {
+          alert('Прочитайте конфиг, чтобы узнать jetton-кошелёк контракта');
+          setSendMusdtButtonLoading(false);
+          return;
+        }
+
+        let buyerJettonWallet;
+        try {
+          buyerJettonWallet = await computeJettonWallet(master, buyerFriendly);
+        } catch (e) {
+          logStatusMusdt('Ошибка получения вашего MUSDT-кошелька: ' + (e?.message || e));
+          setSendMusdtButtonLoading(false);
+          return;
+        }
+
+        const hasPartner = !!reqBody.optionalCommissionWallet;
+        const forwardAmount = calcForwardTonForMusdt({ hasPartner, commissionPositive: commission > 0n });
+        const txValue = forwardAmount + MUSDT_GAS_HEADROOM;
+        logStatusMusdt(`Forward TON: ${fromNano(forwardAmount)} (доп. ${fromNano(MUSDT_GAS_HEADROOM)} на газ кошелька)`);
+
+        const forwardPayloadCell = Cell.fromBoc(Buffer.from(payloadBase64, 'base64'))[0];
+        const jettonBody = beginCell();
+        jettonBody.storeUint(JETTON_TRANSFER_OP, 32);
+        jettonBody.storeUint(0, 64);
+        jettonBody.storeCoins(totalPay);
+        jettonBody.storeAddress(Address.parse(musdtWalletAddr));
+        jettonBody.storeAddress(Address.parse(buyerFriendly));
+        jettonBody.storeMaybeRef(null);
+        jettonBody.storeCoins(forwardAmount);
+        jettonBody.storeMaybeRef(forwardPayloadCell);
+        const jettonPayloadBase64 = jettonBody.endCell().toBoc({ idx: false }).toString('base64');
+
+        const tx = {
+          validUntil: Math.floor(Date.now() / 1000) + 300,
+          messages: [{
+            address: buyerJettonWallet,
+            amount: txValue.toString(),
+            payload: jettonPayloadBase64
+          }]
+        };
+
+        try {
+          logStatusMusdt('Отправляем MUSDT платёж…');
+          await tonConnectUI.sendTransaction(tx);
+          logStatusMusdt('Платёж отправлен.');
+          setTimeout(async () => {
+            const hash = await fetchLastTxHash(currentWallet.account.address);
+            showPaymentExplorerLink(hash, musdtWalletAddr, paymentExplorerMusdtEl);
+          }, 4000);
+        } catch (e) {
+          logStatusMusdt('Ошибка/отмена платежа: ' + (e?.message || e));
+          showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
+        } finally {
+          setSendMusdtButtonLoading(false);
         }
       });
 
@@ -796,6 +1288,60 @@
         readConfig().catch(e => logStatus('getConfig error: ' + (e?.message || e)))
       );
 
+      // ---------- READ: getConfig (MUSDT) ----------
+      async function readConfigMusdt({ silent = false } = {}) {
+        const addr = (contractAddressMusdtEl.value || '').trim();
+        if (!addr) throw new Error('Укажите адрес контракта');
+
+        const client = await rpcClientForCurrentNet();
+        const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+
+        const owner = res.stack.readAddress().toString({ bounceable: true });
+        const mainWallet = res.stack.readAddress().toString({ bounceable: true });
+        const nft = res.stack.readAddress().toString({ bounceable: true });
+        const bps = res.stack.readNumber();
+        const musdtWallet = res.stack.readAddress().toString({ bounceable: true });
+
+        currentOwnerMusdtEl.value = owner;
+        currentBpsMusdtEl.value = String(bps);
+        currentMusdtWalletEl.value = musdtWallet;
+        musdtWalletContractEl.value = musdtWallet;
+
+        if (!silent) {
+          logStatusMusdt(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, musdtWallet=${musdtWallet}, bps=${bps}`);
+        }
+
+        const ownerCheckEl = document.getElementById('ownerCheckMusdt');
+        if (currentWallet?.account?.address) {
+          try {
+            const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
+            const isOwner = walletAddr === owner;
+
+            ownerCheckEl.classList.remove('hidden');
+            if (isOwner) {
+              ownerCheckEl.textContent = '✓ Вы — владелец';
+              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
+              logStatusMusdt('✓ Подключенный кошелек является владельцем контракта');
+            } else {
+              ownerCheckEl.textContent = '✗ Вы не владелец';
+              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
+              logStatusMusdt('✗ Подключенный кошелек НЕ является владельцем контракта');
+            }
+          } catch (e) {
+            console.error('Owner check error:', e);
+            ownerCheckEl.classList.add('hidden');
+          }
+        } else {
+          ownerCheckEl.classList.add('hidden');
+        }
+
+        return { owner, mainWallet, nft, bps, musdtWallet };
+      }
+
+      document.getElementById('readConfigMusdtBtn').addEventListener('click', () =>
+        readConfigMusdt().catch(e => logStatusMusdt('getConfig error: ' + (e?.message || e)))
+      );
+
       // ---------- READ: nonceOf ----------
       document.getElementById('nonceBtn').addEventListener('click', async () => {
         nonceOut.textContent = '';
@@ -822,6 +1368,31 @@
         }
       });
 
+      document.getElementById('nonceBtnMusdt').addEventListener('click', async () => {
+        nonceOutMusdt.textContent = '';
+        try {
+          const addr = (contractAddressMusdtEl.value || '').trim();
+          if (!addr) throw new Error('Укажите адрес контракта');
+
+          const who = (nonceAddrMusdtEl.value || '').trim();
+          if (!who) throw new Error('Укажите адрес аккаунта');
+
+          const client = await rpcClientForCurrentNet();
+          const cell = beginCell();
+          cell.storeAddress(Address.parse(who));
+
+          const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
+            { type: 'slice', cell: cell.endCell() }
+          ]);
+
+          const n = res.stack.readNumber();
+          nonceOutMusdt.textContent = `nonceOf(${who}) = ${n}`;
+        } catch (e) {
+          nonceOutMusdt.textContent = 'nonceOf error: ' + (e?.message || e);
+          console.error(e);
+        }
+      });
+
       // ---------- ADMIN sends ----------
       async function sendAdminMessage({ to, payloadBase64, value = '100000000' }) {
         const tx = {
@@ -835,7 +1406,8 @@
         logStatus('Отправляем админ-транзакцию…');
         const res = await tonConnectUI.sendTransaction(tx);
         logStatus('Админ-транзакция отправлена.');
-        logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
+        const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+        logStatus(`Tx explorer: ${baseExplorer}/${to}`);
         setTimeout(async () => {
           const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
           showPaymentExplorerLink(hash, to);
@@ -849,6 +1421,38 @@
             await readConfig();
           } catch (e) {
             logStatus('Не удалось обновить конфиг: ' + (e?.message || e));
+          }
+        }, 10000);
+
+        return res;
+      }
+
+      async function sendAdminMessageMusdt({ to, payloadBase64, value = '100000000' }) {
+        const tx = {
+          validUntil: Math.floor(Date.now() / 1000) + 300,
+          messages: [{
+            address: to,
+            amount: value,
+            payload: payloadBase64
+          }]
+        };
+        logStatusMusdt('Отправляем админ-транзакцию…');
+        const res = await tonConnectUI.sendTransaction(tx);
+        logStatusMusdt('Админ-транзакция отправлена.');
+        const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+        logStatusMusdt(`Tx explorer: ${baseExplorer}/${to}`);
+        setTimeout(async () => {
+          const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+          showPaymentExplorerLink(hash, to, paymentExplorerMusdtEl);
+        }, 4000);
+        logStatusMusdt('Ожидание подтверждения (10 сек)...');
+
+        setTimeout(async () => {
+          try {
+            logStatusMusdt('Обновляем конфиг...');
+            await readConfigMusdt({ silent: true });
+          } catch (e) {
+            logStatusMusdt('Не удалось обновить конфиг: ' + (e?.message || e));
           }
         }, 10000);
 
@@ -903,6 +1507,57 @@
           logStatus('SetOwner отправлен');
         } catch (e) {
           logStatus('SetOwner error: ' + (e?.message || e));
+        }
+      });
+
+      document.getElementById('sendSetBpsMusdtBtn').addEventListener('click', async () => {
+        const to = (contractAddressMusdtEl.value || '').trim();
+        if (!to) { alert('Укажите адрес контракта'); return; }
+
+        const bps = Number(newBpsMusdtEl.value || '');
+        if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
+          alert('bps 0..10000');
+          return;
+        }
+
+        try {
+          const payload = await buildSetBpsPayload(bps);
+          await sendAdminMessageMusdt({ to, payloadBase64: payload });
+          logStatusMusdt(`SetBps отправлен: ${bps}`);
+        } catch (e) {
+          logStatusMusdt('SetBps error: ' + (e?.message || e));
+        }
+      });
+
+      document.getElementById('sendWithdrawAllMusdtBtn').addEventListener('click', async () => {
+        const to = (contractAddressMusdtEl.value || '').trim();
+        if (!to) { alert('Укажите адрес контракта'); return; }
+
+        const wto = (withdrawToMusdtEl.value || '').trim();
+        if (!wto) { alert('Укажите адрес получателя'); return; }
+
+        try {
+          const payload = await buildWithdrawAllPayload(wto);
+          await sendAdminMessageMusdt({ to, payloadBase64: payload });
+          logStatusMusdt('WithdrawAll отправлен');
+        } catch (e) {
+          logStatusMusdt('WithdrawAll error: ' + (e?.message || e));
+        }
+      });
+
+      document.getElementById('sendSetOwnerMusdtBtn').addEventListener('click', async () => {
+        const to = (contractAddressMusdtEl.value || '').trim();
+        if (!to) { alert('Укажите адрес контракта'); return; }
+
+        const newOwner = (newOwnerMusdtEl.value || '').trim();
+        if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
+
+        try {
+          const payload = await buildSetOwnerPayload(newOwner);
+          await sendAdminMessageMusdt({ to, payloadBase64: payload });
+          logStatusMusdt('SetOwner отправлен');
+        } catch (e) {
+          logStatusMusdt('SetOwner error: ' + (e?.message || e));
         }
       });
 
