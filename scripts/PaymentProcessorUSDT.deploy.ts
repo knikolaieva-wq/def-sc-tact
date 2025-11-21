@@ -13,7 +13,9 @@ function requireEnv(key: string): string {
 }
 
 export async function run(provider: NetworkProvider) {
-  const owner = Address.parse(requireEnv('OWNER'));
+    // ВАЖНО: owner = тот же кошелёк, из которого мы потом шлём SetJettonWallet
+  const owner = provider.sender().address as Address;
+  console.log('Owner address:', owner.toString());
   const mainWallet = Address.parse(requireEnv('MAIN_COMMISSION_WALLET'));
   const nftCollection = Address.parse(requireEnv('NFT_COLLECTION'));
   const jettonMaster = Address.parse(requireEnv('USDT'));
@@ -48,21 +50,4 @@ export async function run(provider: NetworkProvider) {
   const processorJettonWallet = res.stack.readAddress();
 
   console.log('Processor jetton wallet:', processorJettonWallet.toString());
-
-  // 4) Отправляем от OWNER сообщение SetJettonWallet{ newWallet = processorJettonWallet }
-  const opSetJettonWallet = 0xccd3ca15; // тот же, что в контракте
-
-  const body: Cell = beginCell()
-    .storeUint(opSetJettonWallet, 32)           // можно number, можно BigInt
-    .storeAddress(processorJettonWallet)       // Address из TonClient.runMethod
-    .endCell();
-
-  await provider.sender().send({
-    to: contract.address,
-    value: toNano('0.05'), // газ на конфиг
-    bounce: true,
-    body,
-  });
-
-  console.log('SetJettonWallet sent');
 }

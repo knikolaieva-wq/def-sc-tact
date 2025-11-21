@@ -356,6 +356,20 @@
               <input id="currentMusdtWallet" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
                 disabled />
             </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый jetton-кошелёк</span>
+              <input id="newJettonWalletMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="fetchJettonWalletFromMasterBtn"
+                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Получить
+                из master</button>
+              <button id="sendSetJettonWalletMusdtBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Установить jetton wallet</button>
+            </div>
 
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium">Новый bps</span>
@@ -430,7 +444,8 @@
     transfer_jetton: 0x0f8a7ea5,   // Jetton internal_transfer
     setBps: 0xeeab28d0,            // SetPlatformCommissionBps
     withdrawAll: 0xe225cbda,       // WithdrawAll
-    setOwner: 0xc2b41d43           // SetOwner
+    setOwner: 0xc2b41d43,          // SetOwner
+    setJettonWallet: 0xccd3ca15    // SetJettonWallet
   };
 
   // ---------- CONSTANTS / HELPERS ----------
@@ -526,6 +541,7 @@
         amount: document.getElementById('amountMusdt').value,
         decimals: document.getElementById('musdtDecimals').value,
         buyerPays: document.getElementById('buyerPaysMusdt').value,
+        newJettonWallet: document.getElementById('newJettonWalletMusdt').value,
         newBps: document.getElementById('newBpsMusdt').value,
         withdrawTo: document.getElementById('withdrawToMusdt').value,
         newOwner: document.getElementById('newOwnerMusdt').value,
@@ -560,6 +576,7 @@
       if (musdt.amount) document.getElementById('amountMusdt').value = musdt.amount;
       if (musdt.decimals) document.getElementById('musdtDecimals').value = musdt.decimals;
       if (musdt.buyerPays) document.getElementById('buyerPaysMusdt').value = musdt.buyerPays;
+      if (musdt.newJettonWallet) document.getElementById('newJettonWalletMusdt').value = musdt.newJettonWallet;
       if (musdt.newBps) document.getElementById('newBpsMusdt').value = musdt.newBps;
       if (musdt.withdrawTo) document.getElementById('withdrawToMusdt').value = musdt.withdrawTo;
       if (musdt.newOwner) document.getElementById('newOwnerMusdt').value = musdt.newOwner;
@@ -581,7 +598,7 @@
       'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays',
       'newBps', 'withdrawTo', 'newOwner', 'tonNetwork',
       'contractAddressMusdt', 'musdtMaster', 'sellerMusdt', 'partnerMusdt', 'amountMusdt',
-      'musdtDecimals', 'buyerPaysMusdt', 'newBpsMusdt', 'withdrawToMusdt', 'newOwnerMusdt'
+      'musdtDecimals', 'buyerPaysMusdt', 'newJettonWalletMusdt', 'newBpsMusdt', 'withdrawToMusdt', 'newOwnerMusdt'
     ];
 
     inputs.forEach(id => {
@@ -691,6 +708,13 @@
       return b.endCell().toBoc({ idx: false }).toString('base64');
     }
 
+    async function buildSetJettonWalletPayload(newWallet) {
+      const b = beginCell();
+      b.storeUint(OPS.setJettonWallet, 32);
+      b.storeAddress(Address.parse(newWallet));
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
     // ---------- Wallet wiring ----------
     const walletInfo = document.getElementById('wallet-info');
     let currentWallet = null;
@@ -722,7 +746,8 @@
 
       const buttons = [
         'sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn',
-        'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn'
+        'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn',
+        'sendSetJettonWalletMusdtBtn'
       ];
       buttons.forEach((btnId) => {
         const btn = document.getElementById(btnId);
@@ -818,6 +843,7 @@
     const currentBpsMusdtEl = document.getElementById('currentBpsMusdt');
     const currentOwnerMusdtEl = document.getElementById('currentOwnerMusdt');
     const currentMusdtWalletEl = document.getElementById('currentMusdtWallet');
+    const newJettonWalletMusdtEl = document.getElementById('newJettonWalletMusdt');
     const newBpsMusdtEl = document.getElementById('newBpsMusdt');
     const withdrawToMusdtEl = document.getElementById('withdrawToMusdt');
     const newOwnerMusdtEl = document.getElementById('newOwnerMusdt');
@@ -825,6 +851,8 @@
     const nonceAddrMusdtEl = document.getElementById('nonceAddrMusdt');
     const nonceBtnMusdt = document.getElementById('nonceBtnMusdt');
     const nonceOutMusdt = document.getElementById('nonceOutMusdt');
+    const sendSetJettonWalletMusdtBtn = document.getElementById('sendSetJettonWalletMusdtBtn');
+    const fetchJettonWalletFromMasterBtn = document.getElementById('fetchJettonWalletFromMasterBtn');
 
     function setSendButtonLoading(isLoading) {
       if (!sendBtn) return;
@@ -1473,6 +1501,39 @@
         logStatus('SetOwner отправлен');
       } catch (e) {
         logStatus('SetOwner error: ' + (e?.message || e));
+      }
+    });
+
+    fetchJettonWalletFromMasterBtn?.addEventListener('click', async () => {
+      const master = (musdtMasterEl.value || '').trim();
+      const contractAddr = (contractAddressMusdtEl.value || '').trim();
+      if (!contractAddr) { alert('Укажите адрес контракта'); return; }
+      if (!master) { alert('Укажите MUSDT master'); return; }
+
+      try {
+        const wallet = await computeJettonWallet(master, contractAddr);
+        newJettonWalletMusdtEl.value = wallet;
+        musdtWalletContractEl.value = wallet;
+        logStatusMusdt(`Jetton wallet (из master): ${wallet}`);
+        saveFormData();
+      } catch (e) {
+        logStatusMusdt('Ошибка получения jetton wallet: ' + (e?.message || e));
+      }
+    });
+
+    sendSetJettonWalletMusdtBtn?.addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const newWallet = (newJettonWalletMusdtEl.value || '').trim();
+      if (!newWallet) { alert('Укажите новый jetton-кошелёк'); return; }
+
+      try {
+        const payload = await buildSetJettonWalletPayload(newWallet);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload, value: toNano('0.05').toString() });
+        logStatusMusdt('SetJettonWallet отправлен');
+      } catch (e) {
+        logStatusMusdt('SetJettonWallet error: ' + (e?.message || e));
       }
     });
 

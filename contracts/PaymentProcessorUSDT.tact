@@ -7,12 +7,12 @@ import "./Errors.tact";
 
 message(0xf8a7ea5) TokenTransfer {
     queryId: Int as uint64;
-    amount: Int;
+    amount: Int as coins;
     destination: Address;
     response_destination: Address;
     custom_payload: Cell?;
     forward_ton_amount: Int as coins;
-    forward_payload: Slice as remaining;
+    forward_payload: Cell?;
 }
 
 message(0x7362d09c) JettonTransferNotification {
@@ -219,7 +219,7 @@ contract JettonPaymentProcessor with Ownable {
 
         // Газ на каждую отправку Jetton (подбери под себя; главное — чтобы
         // forward_ton_amount при исходном Transfer хватило и на нотификацию, и на эти вызовы)
-        let GAS_PER_TRANSFER: Int = ton("0.05");
+        let GAS_PER_TRANSFER: Int = ton("0.2");
 
         // 8.1. Выплата продавцу
         send(SendParameters{
@@ -234,7 +234,7 @@ contract JettonPaymentProcessor with Ownable {
                 response_destination: myAddress(),
                 custom_payload: null,
                 forward_ton_amount: 0,
-                forward_payload: emptySlice()
+                forward_payload: null
             }.toCell()
         });
 
@@ -252,7 +252,7 @@ contract JettonPaymentProcessor with Ownable {
                     response_destination: myAddress(),
                     custom_payload: null,
                     forward_ton_amount: 0,
-                    forward_payload: emptySlice()
+                    forward_payload: null
                 }.toCell()
             });
         }
@@ -272,7 +272,7 @@ contract JettonPaymentProcessor with Ownable {
                     response_destination: myAddress(),
                     custom_payload: null,
                     forward_ton_amount: ton("0.005"),
-                    forward_payload: emptySlice()
+                    forward_payload: null
                 }.toCell()
             });
 
@@ -332,6 +332,6 @@ contract JettonPaymentProcessor with Ownable {
     }
 
     get fun get_version(): Int {
-        return 1;
+        return 2;
     }
 }
