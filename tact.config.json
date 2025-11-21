@@ -20,6 +20,7 @@
             "masterchain": true
         }
     },
+
     {
       "name": "PartnerNftItem",
       "path": "contracts/PartnerNftItem.tact",
