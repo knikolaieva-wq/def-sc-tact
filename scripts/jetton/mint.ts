@@ -19,6 +19,7 @@ async function run(provider: NetworkProvider) {
   const defaultMintValue = env('JETTON_MINT_VALUE', '0.2');
   const defaultForwardAmount = env('JETTON_FORWARD_AMOUNT', '0');
   const defaultMaster = env('JETTON_MASTER', '');
+  const defaultWalletOwner = env('JETTON_WALLET_OWNER', '');
 
   const masterInput = (await ui.input(`Existing master address (leave empty to deploy new) [default: ${defaultMaster || 'none'}]`)).trim();
   const masterAddrProvided = masterInput || defaultMaster || '';
@@ -47,6 +48,17 @@ async function run(provider: NetworkProvider) {
 
   const mintToInput = (await ui.input(`Mint to address [default: ${defaultMintTo || 'owner'}]`)).trim();
   const mintTo = Address.parse(mintToInput || defaultMintTo);
+
+  // Show handy env hints for MUSDT integration
+  ui.write(`MUSDT_MASTER=${master.address}`);
+  try {
+    const walletOwnerInput = (await ui.input(`Address to compute MUSDT_WALLET (default: mint-to) [default: ${defaultWalletOwner || mintTo}]`)).trim();
+    const walletOwner = Address.parse(walletOwnerInput || defaultWalletOwner || mintTo.toString());
+    const musdtWallet = await master.getGetWalletAddress(provider, walletOwner);
+    ui.write(`MUSDT_WALLET=${musdtWallet}`);
+  } catch (err) {
+    ui.write(`Cannot compute MUSDT_WALLET automatically: ${(err as Error).message}`);
+  }
 
   const decimalsInput = (await ui.input(`Decimals (from metainfo) [default: ${defaultDecimals}]`)).trim();
   const decimals = BigInt(decimalsInput || defaultDecimals);

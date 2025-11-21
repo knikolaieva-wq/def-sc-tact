@@ -32,6 +32,12 @@
         }
     },
     {
+      "name": "PaymentProcessorUSDT",
+      "path": "contracts/PaymentProcessorUSDT.tact",
+      "output": "build/transfer-usdt",
+      "bindings": "js"
+    },
+    {
       "name": "Jetton",
       "path": "contracts/jetton/jetton.tact",
       "output": "build/jetton",
