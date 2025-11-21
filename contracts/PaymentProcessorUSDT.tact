@@ -7,7 +7,7 @@ import "./Errors.tact";
 
 message(0xf8a7ea5) TokenTransfer {
     queryId: Int as uint64;
-    amount: Int as coins;
+    amount: Int;
     destination: Address;
     response_destination: Address;
     custom_payload: Cell?;
@@ -19,7 +19,7 @@ message(0x7362d09c) JettonTransferNotification {
     queryId: Int as uint64 = 0;
     amount: Int as coins;
     sender: Address;
-    forwardPayload: Slice as remaining;
+    forwardPayload: Cell;
 }
 
 // ===== Helper for wallet calculation (из доки Tact) =====
@@ -64,13 +64,16 @@ message(0xe225cbda) WithdrawAll {
 message(0xc2b41d43) SetOwner {
     newOwner: Address;
 }
+message(0xccd3ca15) SetJettonWallet {
+    newWallet: Address;
+}
 
 // ===== Structs =====
 
 struct PaymentRequest {
     buyer: Address;
     seller: Address;
-    amount: Int as coins;          // в минимальных единицах Jetton
+    amount: Int;          // в минимальных единицах Jetton
     buyerPaysCommission: Bool;
     optionalCommissionWallet: Address?;
 }
@@ -104,31 +107,21 @@ contract JettonPaymentProcessor with Ownable {
     nonces: map<Address, Int>;             // per-buyer nonce
 
     // === Jetton config ===
-    jettonMaster: Address;
-    jettonWalletCode: Cell;
+    jettonMaster: Address;                 // адрес контракта Jetton Master
     jettonWallet: Address;                 // jetton wallet этого контракта
 
     init(
         owner: Address,
         mainCommissionWallet: Address,
         partnerCollection: Address,
-        jettonMaster: Address,
-        jettonWalletCode: Cell
+        jettonMaster: Address
     ) {
         self.owner = owner;
         self.mainCommissionWallet = mainCommissionWallet;
         self.partnerCollection = partnerCollection;
         self.platformCommissionBps = 25;   // 0.25%
-
         self.jettonMaster = jettonMaster;
-        self.jettonWalletCode = jettonWalletCode;
-
-        // считаем адрес Jetton-кошелька этого контракта
-        self.jettonWallet = calculateJettonWalletAddress(
-            myAddress(),
-            jettonMaster,
-            jettonWalletCode
-        );
+        self.jettonWallet = myAddress();
     }
 
     // ==== Internal helpers ====
@@ -137,7 +130,6 @@ contract JettonPaymentProcessor with Ownable {
     }
 
     inline fun onlyJettonWallet() {
-        // обязательно заведи в Errors.tact код, например ExitCodeNotJettonWallet
         throwIf(ExitCodeNotJettonWallet, sender() != self.jettonWallet);
     }
 
@@ -151,6 +143,11 @@ contract JettonPaymentProcessor with Ownable {
         self.requireOwner();
         throwIf(InvalidCommissionBps, !(m.newBps >= 0 && m.newBps <= 10000));
         self.platformCommissionBps = m.newBps;
+    }
+    
+    receive(m: SetJettonWallet) {
+        self.requireOwner();
+        self.jettonWallet = m.newWallet;
     }
 
     // выводим весь TON (не Jetton!) с контракта
@@ -175,7 +172,8 @@ contract JettonPaymentProcessor with Ownable {
         self.onlyJettonWallet();
 
         // 2. Парсим наш "бизнес-пейлоад" из forwardPayload
-        let t: Transfer = Transfer.fromSlice(msg.forwardPayload);
+         let slice = msg.forwardPayload.beginParse();
+        let t: Transfer = Transfer.fromSlice(slice);
         let req = t.req;
 
         // 3. Базовые проверки
