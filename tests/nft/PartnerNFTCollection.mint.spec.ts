@@ -87,7 +87,8 @@ describe('PartnerNFTCollection - mint', () => {
         exitCode: bigint | number
     ) => {
         const res = await mintFrom(sender, args);
-        expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode });
+        const normalizedExitCode = typeof exitCode === 'bigint' ? Number(exitCode) : exitCode;
+        expect(res.transactions).toHaveTransaction({ to: collection.address, aborted: true, exitCode: normalizedExitCode });
     };
 
     describe('Positive', () => {

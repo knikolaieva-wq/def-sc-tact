@@ -63,7 +63,7 @@ describe('PartnerNFTCollection - deploy', () => {
             const storedOwner = await collection.getOwner();
             expect(storedOwner.toRawString()).toBe(owner.address.toRawString());
             const version = await collection.getGetVersion();
-            expect(version).toBe(9n);
+            expect(version).toBe(1n);
 
             const tokenId = await collection.getTokenOf(partner.address);
             expect(tokenId).toBe(0n);
