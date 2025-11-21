@@ -408,1182 +408,1149 @@
     </footer>
   </div>
 
-  <script>
-    // ---------- CONFIG ----------
-    const API_URL = '/api/transfer';
-    const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
-    const RPC_MAINNET = 'https://toncenter.com/api/v2/jsonRPC';
+<script>
+  // ---------- CONFIG ----------
+  const API_URL = '/api/transfer';
+  const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
+  const RPC_MAINNET = 'https://toncenter.com/api/v2/jsonRPC';
 
-    const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
-    const fromNano = (nano) => Number(nano) / 1e9;
-    const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
-    const manifestUrlOverride = window.__TONCONNECT_MANIFEST_URL;
-    //manifestUrl: "https://knikolaieva-wq.github.io/tonconnect-manifest/tonconnect-manifest.json"
+  const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
+  const fromNano = (nano) => Number(nano) / 1e9;
+  const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
+  const manifestUrlOverride = window.__TONCONNECT_MANIFEST_URL;
+  const manifestUrlFinal = manifestUrlOverride || manifestUrlResolved;
 
-    const manifestUrlFinal = manifestUrlOverride || manifestUrlResolved;
+  const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+    manifestUrl: manifestUrlFinal
+  });
 
-    // Убираем buttonRootId, чтобы не было конфликта
-    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-      manifestUrl: manifestUrlFinal
+  // op-коды (уже под твой контракт)
+  const OPS = {
+    transfer: 0x42c20f7a,          // Transfer
+    transfer_jetton: 0x0f8a7ea5,   // Jetton internal_transfer
+    setBps: 0xeeab28d0,            // SetPlatformCommissionBps
+    withdrawAll: 0xe225cbda,       // WithdrawAll
+    setOwner: 0xc2b41d43           // SetOwner
+  };
+
+  // ---------- CONSTANTS / HELPERS ----------
+  const MUSDT_MSG_VALUE = toNano('0.05');
+  const MUSDT_PING_VALUE = toNano('0.005');
+  const MUSDT_GAS_HEADROOM = toNano('0.05'); // запас для jetton-кошелька отправителя
+  const DEFAULT_MUSDT_DECIMALS = 9;
+
+  const tabSections = {
+    ton: document.getElementById('tab-ton'),
+    musdt: document.getElementById('tab-musdt')
+  };
+  const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+  let currentTab = 'ton';
+
+  function switchTab(tab) {
+    if (!tabSections[tab]) return;
+    currentTab = tab;
+    Object.entries(tabSections).forEach(([key, el]) => {
+      if (el) el.classList.toggle('hidden', key !== tab);
+    });
+    tabButtons.forEach(btn => {
+      const active = btn.dataset.tab === tab;
+      btn.classList.toggle('bg-black', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('text-gray-800', !active);
+    });
+    saveFormData();
+  }
+
+  tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+  const STORAGE_KEY = 'ton_payment_form_data';
+  const statusTonEl = document.getElementById('status');
+  const statusMusdtEl = document.getElementById('statusMusdt');
+
+  function logStatusTo(el, msg) {
+    if (!el) return;
+    el.textContent += (el.textContent ? '\n' : '') + msg;
+    console.log(msg);
+  }
+  const logStatus = (msg) => logStatusTo(statusTonEl, msg);
+  const logStatusMusdt = (msg) => logStatusTo(statusMusdtEl, msg);
+
+  function formatUnits(value, decimals) {
+    const negative = value < 0n;
+    const abs = negative ? -value : value;
+    const factor = 10n ** BigInt(decimals);
+    const intPart = abs / factor;
+    const fracPart = abs % factor;
+    if (decimals === 0) return `${negative ? '-' : ''}${abs.toString()}`;
+    const fracStr = fracPart.toString().padStart(decimals, '0').replace(/0+$/, '');
+    return `${negative ? '-' : ''}${intPart.toString()}${fracStr ? '.' + fracStr : ''}`;
+  }
+
+  function parseDecimalsSafe(value) {
+    const d = Number(value ?? DEFAULT_MUSDT_DECIMALS);
+    if (!Number.isInteger(d) || d < 0 || d > 18) throw new Error('Decimals должны быть 0..18');
+    return d;
+  }
+
+  function toJettonUnits(amountStr, decimals) {
+    const raw = (amountStr || '').toString().trim();
+    if (!raw) return 0n;
+    const normalized = raw.replace(',', '.');
+    const parts = normalized.split('.');
+    if (parts.length > 2) throw new Error('Некорректная сумма');
+    const [intPartRaw, fracRaw = ''] = parts;
+    if (!/^\d*$/.test(intPartRaw) || !/^\d*$/.test(fracRaw)) throw new Error('Только числа');
+    const intPart = BigInt(intPartRaw || '0');
+    const fracPadded = (fracRaw + '0'.repeat(decimals)).slice(0, decimals);
+    const frac = BigInt(fracPadded || '0');
+    return intPart * 10n ** BigInt(decimals) + frac;
+  }
+
+  function saveFormData() {
+    const data = {
+      ton: {
+        contractAddress: document.getElementById('contractAddress').value,
+        seller: document.getElementById('seller').value,
+        partner: document.getElementById('partner').value,
+        amountTon: document.getElementById('amountTon').value,
+        buyerPays: document.getElementById('buyerPays').value,
+        newBps: document.getElementById('newBps').value,
+        withdrawTo: document.getElementById('withdrawTo').value,
+        newOwner: document.getElementById('newOwner').value,
+      },
+      musdt: {
+        contractAddress: document.getElementById('contractAddressMusdt').value,
+        musdtMaster: document.getElementById('musdtMaster').value,
+        seller: document.getElementById('sellerMusdt').value,
+        partner: document.getElementById('partnerMusdt').value,
+        amount: document.getElementById('amountMusdt').value,
+        decimals: document.getElementById('musdtDecimals').value,
+        buyerPays: document.getElementById('buyerPaysMusdt').value,
+        newBps: document.getElementById('newBpsMusdt').value,
+        withdrawTo: document.getElementById('withdrawToMusdt').value,
+        newOwner: document.getElementById('newOwnerMusdt').value,
+      },
+      tonNetwork: document.getElementById('tonNetwork').value,
+      activeTab: currentTab,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function loadFormData() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+
+      const data = JSON.parse(saved);
+      const ton = data.ton || data;
+      if (ton.contractAddress) document.getElementById('contractAddress').value = ton.contractAddress;
+      if (ton.seller) document.getElementById('seller').value = ton.seller;
+      if (ton.partner) document.getElementById('partner').value = ton.partner;
+      if (ton.amountTon) document.getElementById('amountTon').value = ton.amountTon;
+      if (ton.buyerPays) document.getElementById('buyerPays').value = ton.buyerPays;
+      if (ton.newBps) document.getElementById('newBps').value = ton.newBps;
+      if (ton.withdrawTo) document.getElementById('withdrawTo').value = ton.withdrawTo;
+      if (ton.newOwner) document.getElementById('newOwner').value = ton.newOwner;
+
+      const musdt = data.musdt || {};
+      if (musdt.contractAddress) document.getElementById('contractAddressMusdt').value = musdt.contractAddress;
+      if (musdt.musdtMaster) document.getElementById('musdtMaster').value = musdt.musdtMaster;
+      if (musdt.seller) document.getElementById('sellerMusdt').value = musdt.seller;
+      if (musdt.partner) document.getElementById('partnerMusdt').value = musdt.partner;
+      if (musdt.amount) document.getElementById('amountMusdt').value = musdt.amount;
+      if (musdt.decimals) document.getElementById('musdtDecimals').value = musdt.decimals;
+      if (musdt.buyerPays) document.getElementById('buyerPaysMusdt').value = musdt.buyerPays;
+      if (musdt.newBps) document.getElementById('newBpsMusdt').value = musdt.newBps;
+      if (musdt.withdrawTo) document.getElementById('withdrawToMusdt').value = musdt.withdrawTo;
+      if (musdt.newOwner) document.getElementById('newOwnerMusdt').value = musdt.newOwner;
+
+      if (data.tonNetwork) {
+        document.getElementById('tonNetwork').value = data.tonNetwork;
+        document.getElementById('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+      }
+      if (data.activeTab) switchTab(data.activeTab);
+
+      console.log('Form data loaded from localStorage');
+    } catch (e) {
+      console.error('Failed to load form data:', e);
+    }
+  }
+
+  function attachAutoSave() {
+    const inputs = [
+      'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays',
+      'newBps', 'withdrawTo', 'newOwner', 'tonNetwork',
+      'contractAddressMusdt', 'musdtMaster', 'sellerMusdt', 'partnerMusdt', 'amountMusdt',
+      'musdtDecimals', 'buyerPaysMusdt', 'newBpsMusdt', 'withdrawToMusdt', 'newOwnerMusdt'
+    ];
+
+    inputs.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', saveFormData);
+        el.addEventListener('change', saveFormData);
+      }
+    });
+  }
+
+  function waitForLibs() {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (window.tonLibsReady && window.TonCore && window.TonRpc) {
+          resolve();
+        } else {
+          setTimeout(check, 100);
+        }
+      };
+      check();
+    });
+  }
+
+  loadFormData();
+
+  waitForLibs().then(() => {
+    const { beginCell, Address, Cell, TupleBuilder } = window.TonCore;
+    const { TonClient, TonAddress, getHttpEndpoint } = window.TonRpc;
+
+    logStatus('Библиотеки загружены');
+
+    attachAutoSave();
+
+    // RPC client
+    async function rpcClientForCurrentNet() {
+      const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+
+      if (isTestnet) return new TonClient({ endpoint: RPC_TESTNET });
+
+      const endpoint = await getHttpEndpoint({ network: 'mainnet' });
+      return new TonClient({ endpoint });
+    }
+    const isTestnet = () => document.getElementById('tonNetwork').value === 'testnet';
+
+    async function estimateFeesFull({ address, bodyB64, outgoingCount, hasOptionalWallet = false }) {
+      const client = await rpcClientForCurrentNet();
+
+      const bodyCell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
+
+      const fee = await client.estimateExternalMessageFee(
+        TonAddress.parse(address),
+        { body: bodyCell, ignoreSignature: true }
+      );
+
+      const toBI = v => (v ? BigInt(v) : 0n);
+      const sum = o => toBI(o.in_fwd_fee) + toBI(o.fwd_fee) + toBI(o.gas_fee) + toBI(o.storage_fee);
+
+      const externalFee = fee.source_fees ? sum(fee.source_fees) : 0n;
+
+      const perInternal = isTestnet() ? toNano('0.0017') : toNano('0.0019');
+      const internalFloor = perInternal * BigInt(outgoingCount);
+
+      const actionFloor = hasOptionalWallet ? toNano('0.025') : toNano('0.005');
+
+      return externalFee + internalFloor + actionFloor;
+    }
+
+    // ---------- PAYLOAD BUILDERS ----------
+    async function buildTransferPayload(req, deadline) {
+      const b0 = beginCell();
+      b0.storeUint(OPS.transfer, 32);
+      b0.storeAddress(Address.parse(req.buyer));
+      b0.storeAddress(Address.parse(req.seller));
+      b0.storeInt(BigInt(req.amount), 257);
+      b0.storeBit(!!req.buyerPaysCommission);
+
+      const bOpt = beginCell();
+      bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
+      b0.storeRef(bOpt.endCell());
+
+      const bDl = beginCell();
+      bDl.storeInt(BigInt(deadline), 257);
+      b0.storeRef(bDl.endCell());
+
+      return b0.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildSetBpsPayload(newBps) {
+      const b = beginCell();
+      b.storeUint(OPS.setBps, 32);
+      b.storeInt(BigInt(newBps), 257);
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildWithdrawAllPayload(toAddr) {
+      const b = beginCell();
+      b.storeUint(OPS.withdrawAll, 32);
+      b.storeAddress(Address.parse(toAddr));
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildSetOwnerPayload(newOwner) {
+      const b = beginCell();
+      b.storeUint(OPS.setOwner, 32);
+      b.storeAddress(Address.parse(newOwner));
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    // ---------- Wallet wiring ----------
+    const walletInfo = document.getElementById('wallet-info');
+    let currentWallet = null;
+
+    function updateWalletUI(wallet) {
+      currentWallet = wallet;
+
+      const enable = !!(wallet && wallet.account && wallet.account.address);
+
+      if (enable) {
+        const addr = wallet.account.address;
+        let shortAddr;
+        if (addr.includes(':')) {
+          const parts = addr.split(':');
+          const hash = parts[1];
+          shortAddr = `${parts[0]}:${hash.slice(0, 4)}...${hash.slice(-4)}`;
+        } else {
+          shortAddr = addr.slice(0, 6) + '...' + addr.slice(-4);
+        }
+
+        walletInfo.textContent = `Подключено: ${shortAddr}`;
+        walletInfo.classList.add('text-green-600');
+        walletInfo.classList.remove('text-gray-700');
+      } else {
+        walletInfo.textContent = 'Кошелёк не подключен';
+        walletInfo.classList.remove('text-green-600');
+        walletInfo.classList.add('text-gray-700');
+      }
+
+      const buttons = [
+        'sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn',
+        'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn'
+      ];
+      buttons.forEach((btnId) => {
+        const btn = document.getElementById(btnId);
+        if (btn) btn.disabled = !enable;
+      });
+
+      const nonceAddr = document.getElementById('nonceAddr');
+      const nonceAddrMusdt = document.getElementById('nonceAddrMusdt');
+      if (enable) {
+        try {
+          const addr = wallet.account.address;
+          const friendlyAddr = addr.includes(':') ? Address.parse(addr).toString() : addr;
+          if (nonceAddr && !nonceAddr.value) nonceAddr.value = friendlyAddr;
+          if (nonceAddrMusdt && !nonceAddrMusdt.value) nonceAddrMusdt.value = friendlyAddr;
+        } catch (e) {
+          console.error('Failed to parse wallet address:', e);
+        }
+      }
+    }
+
+    tonConnectUI.onStatusChange((wallet) => {
+      updateWalletUI(wallet);
     });
 
-    // ЗАХАРДКОЖЕНЫ все op-коды из TypeScript файла PaymentProcessor_PaymentProcessor.ts
-    const OPS = {
-      transfer: 1120014202,      // 0x42c20f7a - Transfer
-      setBps: 4004194512,         // 0xeeccd350 - SetPlatformCommissionBps
-      withdrawAll: 3794127834,    // 0xe226cbda - WithdrawAll
-      setOwner: 3266583875        // 0xc2b41d43 - SetOwner
-    };
-
-    // ---------- CONSTANTS / HELPERS ----------
-    const JETTON_TRANSFER_OP = 0xf8a7ea5;
-    const MUSDT_MSG_VALUE = toNano('0.05');
-    const MUSDT_PING_VALUE = toNano('0.005');
-    const MUSDT_GAS_HEADROOM = toNano('0.05'); // запас для jetton-кошелька отправителя
-    const DEFAULT_MUSDT_DECIMALS = 9;
-
-    const tabSections = {
-      ton: document.getElementById('tab-ton'),
-      musdt: document.getElementById('tab-musdt')
-    };
-    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
-    let currentTab = 'ton';
-
-    function switchTab(tab) {
-      if (!tabSections[tab]) return;
-      currentTab = tab;
-      Object.entries(tabSections).forEach(([key, el]) => {
-        if (el) el.classList.toggle('hidden', key !== tab);
-      });
-      tabButtons.forEach(btn => {
-        const active = btn.dataset.tab === tab;
-        btn.classList.toggle('bg-black', active);
-        btn.classList.toggle('text-white', active);
-        btn.classList.toggle('text-gray-800', !active);
-      });
-      saveFormData();
-    }
-
-    tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
-
-    const STORAGE_KEY = 'ton_payment_form_data';
-    const statusTonEl = document.getElementById('status');
-    const statusMusdtEl = document.getElementById('statusMusdt');
-
-    function logStatusTo(el, msg) {
-      if (!el) return;
-      el.textContent += (el.textContent ? '\n' : '') + msg;
-      console.log(msg);
-    }
-    const logStatus = (msg) => logStatusTo(statusTonEl, msg);
-    const logStatusMusdt = (msg) => logStatusTo(statusMusdtEl, msg);
-
-    function formatUnits(value, decimals) {
-      const negative = value < 0n;
-      const abs = negative ? -value : value;
-      const factor = 10n ** BigInt(decimals);
-      const intPart = abs / factor;
-      const fracPart = abs % factor;
-      if (decimals === 0) return `${negative ? '-' : ''}${abs.toString()}`;
-      const fracStr = fracPart.toString().padStart(decimals, '0').replace(/0+$/, '');
-      return `${negative ? '-' : ''}${intPart.toString()}${fracStr ? '.' + fracStr : ''}`;
-    }
-
-    function parseDecimalsSafe(value) {
-      const d = Number(value ?? DEFAULT_MUSDT_DECIMALS);
-      if (!Number.isInteger(d) || d < 0 || d > 18) throw new Error('Decimals должны быть 0..18');
-      return d;
-    }
-
-    function toJettonUnits(amountStr, decimals) {
-      const raw = (amountStr || '').toString().trim();
-      if (!raw) return 0n;
-      const normalized = raw.replace(',', '.');
-      const parts = normalized.split('.');
-      if (parts.length > 2) throw new Error('Некорректная сумма');
-      const [intPartRaw, fracRaw = ''] = parts;
-      if (!/^\d*$/.test(intPartRaw) || !/^\d*$/.test(fracRaw)) throw new Error('Только числа');
-      const intPart = BigInt(intPartRaw || '0');
-      const fracPadded = (fracRaw + '0'.repeat(decimals)).slice(0, decimals);
-      const frac = BigInt(fracPadded || '0');
-      return intPart * 10n ** BigInt(decimals) + frac;
-    }
-
-    function saveFormData() {
-      const data = {
-        ton: {
-          contractAddress: document.getElementById('contractAddress').value,
-          seller: document.getElementById('seller').value,
-          partner: document.getElementById('partner').value,
-          amountTon: document.getElementById('amountTon').value,
-          buyerPays: document.getElementById('buyerPays').value,
-          newBps: document.getElementById('newBps').value,
-          withdrawTo: document.getElementById('withdrawTo').value,
-          newOwner: document.getElementById('newOwner').value,
-        },
-        musdt: {
-          contractAddress: document.getElementById('contractAddressMusdt').value,
-          musdtMaster: document.getElementById('musdtMaster').value,
-          seller: document.getElementById('sellerMusdt').value,
-          partner: document.getElementById('partnerMusdt').value,
-          amount: document.getElementById('amountMusdt').value,
-          decimals: document.getElementById('musdtDecimals').value,
-          buyerPays: document.getElementById('buyerPaysMusdt').value,
-          newBps: document.getElementById('newBpsMusdt').value,
-          withdrawTo: document.getElementById('withdrawToMusdt').value,
-          newOwner: document.getElementById('newOwnerMusdt').value,
-        },
-        tonNetwork: document.getElementById('tonNetwork').value,
-        activeTab: currentTab,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    }
-
-    function loadFormData() {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return;
-
-        const data = JSON.parse(saved);
-        const ton = data.ton || data; // совместимость со старой схемой
-        if (ton.contractAddress) document.getElementById('contractAddress').value = ton.contractAddress;
-        if (ton.seller) document.getElementById('seller').value = ton.seller;
-        if (ton.partner) document.getElementById('partner').value = ton.partner;
-        if (ton.amountTon) document.getElementById('amountTon').value = ton.amountTon;
-        if (ton.buyerPays) document.getElementById('buyerPays').value = ton.buyerPays;
-        if (ton.newBps) document.getElementById('newBps').value = ton.newBps;
-        if (ton.withdrawTo) document.getElementById('withdrawTo').value = ton.withdrawTo;
-        if (ton.newOwner) document.getElementById('newOwner').value = ton.newOwner;
-
-        const musdt = data.musdt || {};
-        if (musdt.contractAddress) document.getElementById('contractAddressMusdt').value = musdt.contractAddress;
-        if (musdt.musdtMaster) document.getElementById('musdtMaster').value = musdt.musdtMaster;
-        if (musdt.seller) document.getElementById('sellerMusdt').value = musdt.seller;
-        if (musdt.partner) document.getElementById('partnerMusdt').value = musdt.partner;
-        if (musdt.amount) document.getElementById('amountMusdt').value = musdt.amount;
-        if (musdt.decimals) document.getElementById('musdtDecimals').value = musdt.decimals;
-        if (musdt.buyerPays) document.getElementById('buyerPaysMusdt').value = musdt.buyerPays;
-        if (musdt.newBps) document.getElementById('newBpsMusdt').value = musdt.newBps;
-        if (musdt.withdrawTo) document.getElementById('withdrawToMusdt').value = musdt.withdrawTo;
-        if (musdt.newOwner) document.getElementById('newOwnerMusdt').value = musdt.newOwner;
-
-        if (data.tonNetwork) {
-          document.getElementById('tonNetwork').value = data.tonNetwork;
-          document.getElementById('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
-        }
-        if (data.activeTab) switchTab(data.activeTab);
-
-        console.log('Form data loaded from localStorage');
-      } catch (e) {
-        console.error('Failed to load form data:', e);
-      }
-    }
-
-    function attachAutoSave() {
-      const inputs = [
-        'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays',
-        'newBps', 'withdrawTo', 'newOwner', 'tonNetwork',
-        'contractAddressMusdt', 'musdtMaster', 'sellerMusdt', 'partnerMusdt', 'amountMusdt',
-        'musdtDecimals', 'buyerPaysMusdt', 'newBpsMusdt', 'withdrawToMusdt', 'newOwnerMusdt'
-      ];
-
-      inputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.addEventListener('input', saveFormData);
-          el.addEventListener('change', saveFormData);
-        }
-      });
-    }
-
-    // Wait for libs to load
-    function waitForLibs() {
-      return new Promise((resolve) => {
-        const check = () => {
-          if (window.tonLibsReady && window.TonCore && window.TonRpc) {
-            resolve();
-          } else {
-            setTimeout(check, 100);
-          }
-        };
-        check();
-      });
-    }
-
-    // Load saved form data on page load
-    loadFormData();
-
-    // Initialize app after libs loaded
-    waitForLibs().then(() => {
-      const { beginCell, Address, Cell, TupleBuilder } = window.TonCore;
-      const { TonClient, TonAddress, getHttpEndpoint } = window.TonRpc;
-
-      logStatus('Библиотеки загружены');
-
-      // Attach auto-save to all inputs
-      attachAutoSave();
-
-
-      // RPC client
-      async function rpcClientForCurrentNet() {
-        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-
-        if (isTestnet) return new TonClient({ endpoint: RPC_TESTNET });
-
-        const endpoint = await getHttpEndpoint({ network: 'mainnet' });
-        return new TonClient({ endpoint });
-      }
-      const isTestnet = () => document.getElementById('tonNetwork').value === 'testnet';
-
-      // Полная оценка = внешняя комиссия (SDK) + гарантированный порог на внутренние исходящие
-      async function estimateFeesFull({ address, bodyB64, outgoingCount, hasOptionalWallet = false }) {
-        const client = await rpcClientForCurrentNet();
-
-        // В браузере нужен Buffer-полифил, см. предыдущие шаги
-        const { Cell } = window.TonCore;
-        const { TonAddress } = window.TonRpc;
-        const bodyCell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
-
-        const fee = await client.estimateExternalMessageFee(
-          TonAddress.parse(address),
-          { body: bodyCell, ignoreSignature: true }
-        );
-
-        const toBI = v => (v ? BigInt(v) : 0n);
-        const sum = o => toBI(o.in_fwd_fee) + toBI(o.fwd_fee) + toBI(o.gas_fee) + toBI(o.storage_fee);
-
-        // это ~0.00095 TON на testnet — внешнее сообщение
-        const externalFee = fee.source_fees ? sum(fee.source_fees) : 0n;
-
-        // Фикс-порог на forward-фии внутренних исходящих (наблюдательно):
-        // ~0.0017 TON за одно исходящее на testnet и ~0.0019 TON на mainnet.
-        const perInternal = isTestnet() ? toNano('0.0017') : toNano('0.0019');
-        const internalFloor = perInternal * BigInt(outgoingCount);
-
-        // Небольшой запас на action/роутинг:
-        // если используется опциональный кошелёк — берём больший запас
-        const actionFloor = hasOptionalWallet ? toNano('0.025') : toNano('0.005');
-
-        return externalFee + internalFloor + actionFloor;
-      }
-
-      // ---------- PAYLOAD BUILDERS (используют OPS) ----------
-      async function buildTransferPayload(req, deadline) {
-        const b0 = beginCell();
-        b0.storeUint(OPS.transfer, 32);
-        b0.storeAddress(Address.parse(req.buyer));
-        b0.storeAddress(Address.parse(req.seller));
-        b0.storeInt(BigInt(req.amount), 257);
-        b0.storeBit(!!req.buyerPaysCommission);
-
-        const bOpt = beginCell();
-        bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
-        b0.storeRef(bOpt.endCell());
-
-        const bDl = beginCell();
-        bDl.storeInt(BigInt(deadline), 257);
-        b0.storeRef(bDl.endCell());
-
-        return b0.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      async function buildSetBpsPayload(newBps) {
-        const b = beginCell();
-        b.storeUint(OPS.setBps, 32);
-        b.storeInt(BigInt(newBps), 257);
-        return b.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      async function buildWithdrawAllPayload(toAddr) {
-        const b = beginCell();
-        b.storeUint(OPS.withdrawAll, 32);
-        b.storeAddress(Address.parse(toAddr));
-        return b.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      async function buildSetOwnerPayload(newOwner) {
-        const b = beginCell();
-        b.storeUint(OPS.setOwner, 32);
-        b.storeAddress(Address.parse(newOwner));
-        return b.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      // ---------- Wallet wiring ----------
-      const walletInfo = document.getElementById('wallet-info');
-      let currentWallet = null;
-
-      // Функция для обновления UI состояния кошелька
-      function updateWalletUI(wallet) {
-        console.log('Updating wallet UI:', wallet);
-        console.log('Wallet structure:', JSON.stringify(wallet, null, 2));
-
-        currentWallet = wallet;
-
-        const enable = !!(wallet && wallet.account && wallet.account.address);
-
-        console.log('Enable state:', enable);
-        console.log('Wallet account:', wallet?.account);
-        console.log('Wallet address:', wallet?.account?.address);
-
-        if (enable) {
-          const addr = wallet.account.address;
-          // Проверяем формат адреса и делаем корректное сокращение
-          let shortAddr;
-          if (addr.includes(':')) {
-            // Формат 0:4b1870944ba9c99341cd6b66537328aa222a32875c4ed92060f7a324e43013e0
-            const parts = addr.split(':');
-            const hash = parts[1];
-            shortAddr = `${parts[0]}:${hash.slice(0, 4)}...${hash.slice(-4)}`;
-          } else {
-            // Формат EQC...
-            shortAddr = addr.slice(0, 6) + '...' + addr.slice(-4);
-          }
-
-          walletInfo.textContent = `Подключено: ${shortAddr}`;
-          walletInfo.classList.add('text-green-600');
-          walletInfo.classList.remove('text-gray-700');
-        } else {
-          walletInfo.textContent = 'Кошелёк не подключен';
-          walletInfo.classList.remove('text-green-600');
-          walletInfo.classList.add('text-gray-700');
-        }
-
-        // Управление кнопками
-        const buttons = [
-          'sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn',
-          'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn'
-        ];
-        buttons.forEach((btnId) => {
-          const btn = document.getElementById(btnId);
-          if (btn) {
-            btn.disabled = !enable;
-            console.log(`Button ${btnId} disabled: ${!enable}`);
-          } else {
-            console.warn(`Button ${btnId} not found`);
-          }
-        });
-
-        // Автозаполнение nonce address - используем friendly формат
-        const nonceAddr = document.getElementById('nonceAddr');
-        const nonceAddrMusdt = document.getElementById('nonceAddrMusdt');
-        if (enable) {
-          try {
-            const addr = wallet.account.address;
-            const friendlyAddr = addr.includes(':') ? Address.parse(addr).toString() : addr;
-            if (nonceAddr && !nonceAddr.value) nonceAddr.value = friendlyAddr;
-            if (nonceAddrMusdt && !nonceAddrMusdt.value) nonceAddrMusdt.value = friendlyAddr;
-          } catch (e) {
-            console.error('Failed to parse wallet address:', e);
-          }
-        }
-      }
-
-      // Обработка изменений статуса подключения
-      tonConnectUI.onStatusChange((wallet) => {
-        console.log('TonConnect status changed:', wallet);
+    setTimeout(() => {
+      const wallet = tonConnectUI.wallet;
+      if (wallet) {
         updateWalletUI(wallet);
-      });
-
-      // Проверяем текущее состояние кошелька при загрузке и обновляем UI
-      setTimeout(() => {
-        const wallet = tonConnectUI.wallet;
-        console.log('Checking wallet on init:', wallet);
-        if (wallet) {
-          updateWalletUI(wallet);
-        } else {
-          console.log('No wallet connected on init');
-        }
-      }, 100);
-
-      document.getElementById('connectBtn').addEventListener('click', async () => {
-        try {
-          console.log('Opening TonConnect modal...');
-          await tonConnectUI.openModal();
-        } catch (e) {
-          console.error('Connect error:', e);
-          alert(e?.message || 'Ошибка подключения');
-        }
-      });
-
-      document.getElementById('connectDirectBtn').addEventListener('click', () => {
-        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-        const manifestUrl = encodeURIComponent(manifestUrlFinal);
-        const testnetParam = isTestnet ? '&testnet=true' : '';
-        console.log('Opening Tonkeeper directly with testnet:', isTestnet);
-        window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
-      });
-
-      document.getElementById('tonNetwork').addEventListener('change', (e) => {
-        document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
-        saveFormData(); // Save network selection
-      });
-
-      // ---------- UI elems ----------
-      const contractAddressEl = document.getElementById('contractAddress');
-      const sellerEl = document.getElementById('seller');
-      const partnerEl = document.getElementById('partner');
-      const amountTonEl = document.getElementById('amountTon');
-      const buyerPaysEl = document.getElementById('buyerPays');
-
-      const previewEl = document.getElementById('preview');
-      const previewOnchainBtn = document.getElementById('previewOnchainBtn');
-      const sendBtn = document.getElementById('sendBtn');
-      const sendBtnSpinner = document.getElementById('sendBtnSpinner');
-      const sendBtnText = document.getElementById('sendBtnText');
-      const paymentExplorerEl = document.getElementById('paymentExplorer');
-
-      const currentBpsEl = document.getElementById('currentBps');
-      const currentOwnerEl = document.getElementById('currentOwner');
-      const newBpsEl = document.getElementById('newBps');
-      const withdrawToEl = document.getElementById('withdrawTo');
-      const newOwnerEl = document.getElementById('newOwner');
-
-      const nonceAddrEl = document.getElementById('nonceAddr');
-      const nonceBtn = document.getElementById('nonceBtn');
-      const nonceOut = document.getElementById('nonceOut');
-
-      const contractAddressMusdtEl = document.getElementById('contractAddressMusdt');
-      const musdtMasterEl = document.getElementById('musdtMaster');
-      const sellerMusdtEl = document.getElementById('sellerMusdt');
-      const partnerMusdtEl = document.getElementById('partnerMusdt');
-      const amountMusdtEl = document.getElementById('amountMusdt');
-      const musdtDecimalsEl = document.getElementById('musdtDecimals');
-      const buyerPaysMusdtEl = document.getElementById('buyerPaysMusdt');
-      const musdtWalletContractEl = document.getElementById('musdtWalletContract');
-
-      const previewMusdtEl = document.getElementById('previewMusdt');
-      const previewMusdtBtn = document.getElementById('previewMusdtBtn');
-      const sendMusdtBtn = document.getElementById('sendMusdtBtn');
-      const sendMusdtBtnSpinner = document.getElementById('sendMusdtBtnSpinner');
-      const sendMusdtBtnText = document.getElementById('sendMusdtBtnText');
-      const paymentExplorerMusdtEl = document.getElementById('paymentExplorerMusdt');
-
-      const currentBpsMusdtEl = document.getElementById('currentBpsMusdt');
-      const currentOwnerMusdtEl = document.getElementById('currentOwnerMusdt');
-      const currentMusdtWalletEl = document.getElementById('currentMusdtWallet');
-      const newBpsMusdtEl = document.getElementById('newBpsMusdt');
-      const withdrawToMusdtEl = document.getElementById('withdrawToMusdt');
-      const newOwnerMusdtEl = document.getElementById('newOwnerMusdt');
-
-      const nonceAddrMusdtEl = document.getElementById('nonceAddrMusdt');
-      const nonceBtnMusdt = document.getElementById('nonceBtnMusdt');
-      const nonceOutMusdt = document.getElementById('nonceOutMusdt');
-
-      function setSendButtonLoading(isLoading) {
-        if (!sendBtn) return;
-        if (isLoading) {
-          sendBtn.dataset.restoreDisabled = sendBtn.disabled ? '1' : '0';
-          sendBtn.disabled = true;
-          sendBtnSpinner?.classList.remove('hidden');
-          if (sendBtnText) sendBtnText.textContent = 'Отправляем…';
-        } else {
-          const restore = sendBtn.dataset.restoreDisabled === '1';
-          sendBtn.disabled = restore;
-          sendBtnSpinner?.classList.add('hidden');
-          if (sendBtnText) sendBtnText.textContent = 'Оплатить';
-        }
       }
+    }, 100);
 
-      function setSendMusdtButtonLoading(isLoading) {
-        if (!sendMusdtBtn) return;
-        if (isLoading) {
-          sendMusdtBtn.dataset.restoreDisabled = sendMusdtBtn.disabled ? '1' : '0';
-          sendMusdtBtn.disabled = true;
-          sendMusdtBtnSpinner?.classList.remove('hidden');
-          if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Отправляем…';
-        } else {
-          const restore = sendMusdtBtn.dataset.restoreDisabled === '1';
-          sendMusdtBtn.disabled = restore;
-          sendMusdtBtnSpinner?.classList.add('hidden');
-          if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Оплатить MUSDT';
-        }
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+      try {
+        await tonConnectUI.openModal();
+      } catch (e) {
+        console.error('Connect error:', e);
+        alert(e?.message || 'Ошибка подключения');
       }
+    });
 
-      function showPaymentExplorerLink(hash, fallbackAddress, targetEl = paymentExplorerEl) {
-        if (!targetEl) return;
-        if (!hash) {
-          targetEl.classList.add('hidden');
-          targetEl.innerHTML = '';
-          return;
-        }
-        const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
-        const url = `${baseExplorer}/transaction/${hash}`;
-        targetEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
-        targetEl.classList.remove('hidden');
+    document.getElementById('connectDirectBtn').addEventListener('click', () => {
+      const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+      const manifestUrl = encodeURIComponent(manifestUrlFinal);
+      const testnetParam = isTestnet ? '&testnet=true' : '';
+      window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
+    });
+
+    document.getElementById('tonNetwork').addEventListener('change', (e) => {
+      document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+      saveFormData();
+    });
+
+    // ---------- UI elems ----------
+    const contractAddressEl = document.getElementById('contractAddress');
+    const sellerEl = document.getElementById('seller');
+    const partnerEl = document.getElementById('partner');
+    const amountTonEl = document.getElementById('amountTon');
+    const buyerPaysEl = document.getElementById('buyerPays');
+
+    const previewEl = document.getElementById('preview');
+    const previewOnchainBtn = document.getElementById('previewOnchainBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const sendBtnSpinner = document.getElementById('sendBtnSpinner');
+    const sendBtnText = document.getElementById('sendBtnText');
+    const paymentExplorerEl = document.getElementById('paymentExplorer');
+
+    const currentBpsEl = document.getElementById('currentBps');
+    const currentOwnerEl = document.getElementById('currentOwner');
+    const newBpsEl = document.getElementById('newBps');
+    const withdrawToEl = document.getElementById('withdrawTo');
+    const newOwnerEl = document.getElementById('newOwner');
+
+    const nonceAddrEl = document.getElementById('nonceAddr');
+    const nonceBtn = document.getElementById('nonceBtn');
+    const nonceOut = document.getElementById('nonceOut');
+
+    const contractAddressMusdtEl = document.getElementById('contractAddressMusdt');
+    const musdtMasterEl = document.getElementById('musdtMaster');
+    const sellerMusdtEl = document.getElementById('sellerMusdt');
+    const partnerMusdtEl = document.getElementById('partnerMusdt');
+    const amountMusdtEl = document.getElementById('amountMusdt');
+    const musdtDecimalsEl = document.getElementById('musdtDecimals');
+    const buyerPaysMusdtEl = document.getElementById('buyerPaysMusdt');
+    const musdtWalletContractEl = document.getElementById('musdtWalletContract');
+
+    const previewMusdtEl = document.getElementById('previewMusdt');
+    const previewMusdtBtn = document.getElementById('previewMusdtBtn');
+    const sendMusdtBtn = document.getElementById('sendMusdtBtn');
+    const sendMusdtBtnSpinner = document.getElementById('sendMusdtBtnSpinner');
+    const sendMusdtBtnText = document.getElementById('sendMusdtBtnText');
+    const paymentExplorerMusdtEl = document.getElementById('paymentExplorerMusdt');
+
+    const currentBpsMusdtEl = document.getElementById('currentBpsMusdt');
+    const currentOwnerMusdtEl = document.getElementById('currentOwnerMusdt');
+    const currentMusdtWalletEl = document.getElementById('currentMusdtWallet');
+    const newBpsMusdtEl = document.getElementById('newBpsMusdt');
+    const withdrawToMusdtEl = document.getElementById('withdrawToMusdt');
+    const newOwnerMusdtEl = document.getElementById('newOwnerMusdt');
+
+    const nonceAddrMusdtEl = document.getElementById('nonceAddrMusdt');
+    const nonceBtnMusdt = document.getElementById('nonceBtnMusdt');
+    const nonceOutMusdt = document.getElementById('nonceOutMusdt');
+
+    function setSendButtonLoading(isLoading) {
+      if (!sendBtn) return;
+      if (isLoading) {
+        sendBtn.dataset.restoreDisabled = sendBtn.disabled ? '1' : '0';
+        sendBtn.disabled = true;
+        sendBtnSpinner?.classList.remove('hidden');
+        if (sendBtnText) sendBtnText.textContent = 'Отправляем…';
+      } else {
+        const restore = sendBtn.dataset.restoreDisabled === '1';
+        sendBtn.disabled = restore;
+        sendBtnSpinner?.classList.add('hidden');
+        if (sendBtnText) sendBtnText.textContent = 'Оплатить';
       }
+    }
 
-      async function fetchLastTxHash(address) {
-        try {
-          const client = await rpcClientForCurrentNet();
-          const txs = await client.getTransactions(TonAddress.parse(address), { limit: 1 });
-          if (txs.length > 0) {
-            return txs[0].hash().toString('hex');
-          }
-        } catch (e) {
-          console.error('fetchLastTxHash error:', e);
-        }
-        return null;
+    function setSendMusdtButtonLoading(isLoading) {
+      if (!sendMusdtBtn) return;
+      if (isLoading) {
+        sendMusdtBtn.dataset.restoreDisabled = sendMusdtBtn.disabled ? '1' : '0';
+        sendMusdtBtn.disabled = true;
+        sendMusdtBtnSpinner?.classList.remove('hidden');
+        if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Отправляем…';
+      } else {
+        const restore = sendMusdtBtn.dataset.restoreDisabled === '1';
+        sendMusdtBtn.disabled = restore;
+        sendMusdtBtnSpinner?.classList.add('hidden');
+        if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Оплатить MUSDT';
       }
+    }
 
-      async function computeJettonWallet(masterAddr, ownerAddr) {
+    function showPaymentExplorerLink(hash, fallbackAddress, targetEl = paymentExplorerEl) {
+      if (!targetEl) return;
+      if (!hash) {
+        targetEl.classList.add('hidden');
+        targetEl.innerHTML = '';
+        return;
+      }
+      const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+      const url = `${baseExplorer}/transaction/${hash}`;
+      targetEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
+      targetEl.classList.remove('hidden');
+    }
+
+    async function fetchLastTxHash(address) {
+      try {
         const client = await rpcClientForCurrentNet();
-        const tb = new TupleBuilder();
-        tb.writeAddress(Address.parse(ownerAddr));
-        const res = await client.runMethod(TonAddress.parse(masterAddr), 'get_wallet_address', tb.build());
-        return res.stack.readAddress().toString({ bounceable: true });
+        const txs = await client.getTransactions(TonAddress.parse(address), { limit: 1 });
+        if (txs.length > 0) {
+          return txs[0].hash().toString('hex');
+        }
+      } catch (e) {
+        console.error('fetchLastTxHash error:', e);
       }
+      return null;
+    }
 
-      function calcForwardTonForMusdt({ hasPartner, commissionPositive }) {
-        const transfersCount = 1 + (commissionPositive ? 1 : 0) + (hasPartner ? 1 : 0);
-        const pingValue = hasPartner ? MUSDT_PING_VALUE : 0n;
-        return MUSDT_MSG_VALUE * BigInt(transfersCount) + pingValue;
-      }
+    async function computeJettonWallet(masterAddr, ownerAddr) {
+      const client = await rpcClientForCurrentNet();
+      const tb = new TupleBuilder();
+      tb.writeAddress(Address.parse(ownerAddr));
+      const res = await client.runMethod(TonAddress.parse(masterAddr), 'get_wallet_address', tb.build());
+      return res.stack.readAddress().toString({ bounceable: true });
+    }
 
-      // ---------- PREVIEW (on-chain only) ----------
-      previewOnchainBtn.addEventListener('click', async () => {
-        try {
-          const addr = (contractAddressEl.value || '').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
+    function calcForwardTonForMusdt({ hasPartner, commissionPositive }) {
+      const transfersCount = 1 + (commissionPositive ? 1 : 0) + (hasPartner ? 1 : 0);
+      const pingValue = hasPartner ? MUSDT_PING_VALUE : 0n;
+      return MUSDT_MSG_VALUE * BigInt(transfersCount) + pingValue;
+    }
 
-          const client = await rpcClientForCurrentNet();
-          const amount = toNano(amountTonEl.value || '0');
-          const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
-
-          const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
-            { type: 'int', value: amount },
-            { type: 'int', value: buyerPays }
-          ]);
-
-          // ИСПРАВЛЕНО: правильный порядок чтения стека
-          // previewPayment возвращает Preview{ commission, totalPay }
-          const commission = BigInt(res.stack.readNumber());
-          const totalPay = BigInt(res.stack.readNumber());
-
-          console.log('Preview:', { amount, commission, totalPay });
-
-          previewEl.textContent =
-            `==== PAYMENT PREVIEW ====
-Сумма:           ${fromNano(amount)} TON
-Комиссия:        ${fromNano(commission)} TON
-Итого к оплате:  ${fromNano(totalPay)} TON
-========================`;
-        } catch (e) {
-          previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
-          console.error(e);
-        }
-      });
-
-      // ---------- PREVIEW MUSDT ----------
-      previewMusdtBtn.addEventListener('click', async () => {
-        try {
-          const addr = (contractAddressMusdtEl.value || '').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
-
-          const decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
-          const amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
-          const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
-
-          const client = await rpcClientForCurrentNet();
-          const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
-            { type: 'int', value: amount },
-            { type: 'int', value: buyerPays }
-          ]);
-
-          const commission = BigInt(res.stack.readNumber());
-          const totalPay = BigInt(res.stack.readNumber());
-
-          previewMusdtEl.textContent =
-            `==== PAYMENT PREVIEW ====
-Сумма:           ${formatUnits(amount, decimals)} MUSDT
-Комиссия:        ${formatUnits(commission, decimals)} MUSDT
-Итого к оплате:  ${formatUnits(totalPay, decimals)} MUSDT
-========================`;
-        } catch (e) {
-          previewMusdtEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
-          console.error(e);
-        }
-      });
-
-      // ---------- SEND payment ----------
-      sendBtn.addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-        if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
-
-        const buyerAddrFromWallet = currentWallet.account.address;
-        setSendButtonLoading(true);
-        showPaymentExplorerLink(null, null);
-
-        // Get real commission from contract
-        let totalPay, amount;
-        try {
-          const client = await rpcClientForCurrentNet();
-          amount = toNano(amountTonEl.value || '0');
-          const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
-
-          const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
-            { type: 'int', value: amount },
-            { type: 'int', value: buyerPays }
-          ]);
-
-          const commission = BigInt(res.stack.readNumber());
-          totalPay = BigInt(res.stack.readNumber()) + commission;
-
-          logStatus(`Amount: ${fromNano(amount)} TON`);
-          logStatus(`Commission: ${fromNano(commission)} TON`);
-        } catch (e) {
-          logStatus('Ошибка получения комиссии: ' + (e?.message || e));
-          setSendButtonLoading(false);
-          return;
-        }
-
-        const reqBody = {
-          buyer: buyerAddrFromWallet,
-          seller: sellerEl.value.trim(),
-          amount: amount.toString(),
-          buyerPaysCommission: buyerPaysEl.value === 'true',
-          optionalCommissionWallet: (partnerEl.value || '').trim() || null
-        };
-
-        let payloadBase64 = '';
-        try {
-          payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
-        } catch (e) {
-          logStatus('payload error: ' + (e?.message || e));
-          setSendButtonLoading(false);
-          return;
-        }
-
-        let networkFees = 0n;
-        try {
-          const hasPartner = !!reqBody.optionalCommissionWallet;
-          const outgoingCount = 1 + 1 + (hasPartner ? 1 : 0); // продавец + платформа (+ партнёр)
-
-          networkFees = await estimateFeesFull({
-            address: to,
-            bodyB64: payloadBase64,
-            outgoingCount,
-            hasOptionalWallet: hasPartner
-          });
-        } catch (e) {
-          logStatus('Ошибка естимации комиссии сети: ' + (e?.message || e));
-          setSendButtonLoading(false);
-          return;
-        }
-        console.log('Estimated network fees:', fromNano(networkFees), 'TON');
-
-        const totalToSend = totalPay + networkFees;
-        logStatus(`Total to send: ${fromNano(totalToSend)} TON`);
-
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [{
-            address: to,
-            amount: totalToSend.toString(),
-            payload: payloadBase64
-          }]
-        };
-
-        try {
-          logStatus('Отправляем платёж…');
-          await tonConnectUI.sendTransaction(tx);
-          logStatus('Платёж отправлен.');
-          const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
-          logStatus(`Tx explorer: ${baseExplorer}/${to}`);
-          setTimeout(async () => {
-            const hash = await fetchLastTxHash(currentWallet.account.address);
-            showPaymentExplorerLink(hash, to);
-          }, 4000);
-        } catch (e) {
-          logStatus('Ошибка/отмена платежа: ' + (e?.message || e));
-          showPaymentExplorerLink(null, null);
-        } finally {
-          setSendButtonLoading(false);
-        }
-      });
-
-      // ---------- SEND MUSDT payment ----------
-      sendMusdtBtn.addEventListener('click', async () => {
-        const to = (contractAddressMusdtEl.value || '').trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-        if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
-
-        const master = (musdtMasterEl.value || '').trim();
-        if (!master) { alert('Укажите MUSDT master'); return; }
-
-        let decimals;
-        try {
-          decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
-        } catch (e) {
-          alert(e.message);
-          return;
-        }
-
-        let amount;
-        try {
-          amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
-        } catch (e) {
-          alert(e?.message || e);
-          return;
-        }
-
-        if (amount <= 0n) { alert('Сумма должна быть > 0'); return; }
-
-        const buyerAddrFromWallet = currentWallet.account.address;
-        const buyerFriendly = buyerAddrFromWallet.includes(':')
-          ? Address.parse(buyerAddrFromWallet).toString()
-          : buyerAddrFromWallet;
-        setSendMusdtButtonLoading(true);
-        showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
-
-        let commission = 0n;
-        let totalPay = 0n;
-        try {
-          const client = await rpcClientForCurrentNet();
-          const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
-
-          const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
-            { type: 'int', value: amount },
-            { type: 'int', value: buyerPays }
-          ]);
-
-          commission = BigInt(res.stack.readNumber());
-          totalPay = BigInt(res.stack.readNumber());
-
-          logStatusMusdt(`Amount: ${formatUnits(amount, decimals)} MUSDT`);
-          logStatusMusdt(`Commission: ${formatUnits(commission, decimals)} MUSDT`);
-        } catch (e) {
-          logStatusMusdt('Ошибка получения комиссии: ' + (e?.message || e));
-          setSendMusdtButtonLoading(false);
-          return;
-        }
-
-        const reqBody = {
-          buyer: buyerFriendly,
-          seller: sellerMusdtEl.value.trim(),
-          amount: amount.toString(),
-          buyerPaysCommission: buyerPaysMusdtEl.value === 'true',
-          optionalCommissionWallet: (partnerMusdtEl.value || '').trim() || null
-        };
-
-        let payloadBase64 = '';
-        try {
-          payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
-        } catch (e) {
-          logStatusMusdt('payload error: ' + (e?.message || e));
-          setSendMusdtButtonLoading(false);
-          return;
-        }
-
-        let musdtWalletAddr = (musdtWalletContractEl.value || '').trim();
-        try {
-          if (!musdtWalletAddr) {
-            const cfg = await readConfigMusdt({ silent: true });
-            musdtWalletAddr = cfg?.musdtWallet || '';
-          }
-        } catch (e) {
-          logStatusMusdt('Не удалось прочитать musdtWallet: ' + (e?.message || e));
-        }
-        if (!musdtWalletAddr) {
-          alert('Прочитайте конфиг, чтобы узнать jetton-кошелёк контракта');
-          setSendMusdtButtonLoading(false);
-          return;
-        }
-
-        let buyerJettonWallet;
-        try {
-          buyerJettonWallet = await computeJettonWallet(master, buyerFriendly);
-        } catch (e) {
-          logStatusMusdt('Ошибка получения вашего MUSDT-кошелька: ' + (e?.message || e));
-          setSendMusdtButtonLoading(false);
-          return;
-        }
-
-        const hasPartner = !!reqBody.optionalCommissionWallet;
-        const forwardAmount = calcForwardTonForMusdt({ hasPartner, commissionPositive: commission > 0n });
-        const txValue = forwardAmount + MUSDT_GAS_HEADROOM;
-        logStatusMusdt(`Forward TON: ${fromNano(forwardAmount)} (доп. ${fromNano(MUSDT_GAS_HEADROOM)} на газ кошелька)`);
-
-        const forwardPayloadCell = Cell.fromBoc(Buffer.from(payloadBase64, 'base64'))[0];
-        const jettonBody = beginCell();
-        jettonBody.storeUint(JETTON_TRANSFER_OP, 32);
-        jettonBody.storeUint(0, 64);
-        jettonBody.storeCoins(totalPay);
-        jettonBody.storeAddress(Address.parse(musdtWalletAddr));
-        jettonBody.storeAddress(Address.parse(buyerFriendly));
-        jettonBody.storeMaybeRef(null);
-        jettonBody.storeCoins(forwardAmount);
-        jettonBody.storeMaybeRef(forwardPayloadCell);
-        const jettonPayloadBase64 = jettonBody.endCell().toBoc({ idx: false }).toString('base64');
-
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [{
-            address: buyerJettonWallet,
-            amount: txValue.toString(),
-            payload: jettonPayloadBase64
-          }]
-        };
-
-        try {
-          logStatusMusdt('Отправляем MUSDT платёж…');
-          await tonConnectUI.sendTransaction(tx);
-          logStatusMusdt('Платёж отправлен.');
-          setTimeout(async () => {
-            const hash = await fetchLastTxHash(currentWallet.account.address);
-            showPaymentExplorerLink(hash, musdtWalletAddr, paymentExplorerMusdtEl);
-          }, 4000);
-        } catch (e) {
-          logStatusMusdt('Ошибка/отмена платежа: ' + (e?.message || e));
-          showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
-        } finally {
-          setSendMusdtButtonLoading(false);
-        }
-      });
-
-      // ---------- READ: getConfig ----------
-      async function readConfig() {
+    // ---------- PREVIEW (TON) ----------
+    previewOnchainBtn.addEventListener('click', async () => {
+      try {
         const addr = (contractAddressEl.value || '').trim();
         if (!addr) throw new Error('Укажите адрес контракта');
 
         const client = await rpcClientForCurrentNet();
-        const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+        const amount = toNano(amountTonEl.value || '0');
+        const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
 
-        const owner = res.stack.readAddress().toString({ bounceable: true });
-        const mainWallet = res.stack.readAddress().toString({ bounceable: true });
-        const nft = res.stack.readAddress().toString({ bounceable: true });
-        const bps = res.stack.readNumber();
+        const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
 
-        currentOwnerEl.value = owner;
-        currentBpsEl.value = String(bps);
-        logStatus(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, bps=${bps}`);
+        const commission = BigInt(res.stack.readNumber());
+        const totalPay = BigInt(res.stack.readNumber());
 
-        // Проверяем совпадение owner с подключенным кошельком
-        const ownerCheckEl = document.getElementById('ownerCheck');
-        if (currentWallet?.account?.address) {
-          try {
-            const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
-            const isOwner = walletAddr === owner;
-
-            ownerCheckEl.classList.remove('hidden');
-            if (isOwner) {
-              ownerCheckEl.textContent = '✓ Вы — владелец';
-              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
-              logStatus('✓ Подключенный кошелек является владельцем контракта');
-            } else {
-              ownerCheckEl.textContent = '✗ Вы не владелец';
-              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
-              logStatus('✗ Подключенный кошелек НЕ является владельцем контракта');
-            }
-          } catch (e) {
-            console.error('Owner check error:', e);
-            ownerCheckEl.classList.add('hidden');
-          }
-        } else {
-          ownerCheckEl.classList.add('hidden');
-        }
+        previewEl.textContent =
+          `==== PAYMENT PREVIEW ====
+Сумма:           ${fromNano(amount)} TON
+Комиссия:        ${fromNano(commission)} TON
+Итого к оплате:  ${fromNano(totalPay)} TON
+========================`;
+      } catch (e) {
+        previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
+        console.error(e);
       }
+    });
 
-      document.getElementById('readConfigBtn').addEventListener('click', () =>
-        readConfig().catch(e => logStatus('getConfig error: ' + (e?.message || e)))
-      );
-
-      // ---------- READ: getConfig (MUSDT) ----------
-      async function readConfigMusdt({ silent = false } = {}) {
+    // ---------- PREVIEW MUSDT ----------
+    previewMusdtBtn.addEventListener('click', async () => {
+      try {
         const addr = (contractAddressMusdtEl.value || '').trim();
         if (!addr) throw new Error('Укажите адрес контракта');
 
+        const decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
+        const amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
+        const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
+
         const client = await rpcClientForCurrentNet();
-        const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+        const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
 
-        const owner = res.stack.readAddress().toString({ bounceable: true });
-        const mainWallet = res.stack.readAddress().toString({ bounceable: true });
-        const nft = res.stack.readAddress().toString({ bounceable: true });
-        const bps = res.stack.readNumber();
-        const musdtWallet = res.stack.readAddress().toString({ bounceable: true });
+        const commission = BigInt(res.stack.readNumber());
+        const totalPay = BigInt(res.stack.readNumber());
 
-        currentOwnerMusdtEl.value = owner;
-        currentBpsMusdtEl.value = String(bps);
-        currentMusdtWalletEl.value = musdtWallet;
-        musdtWalletContractEl.value = musdtWallet;
+        previewMusdtEl.textContent =
+          `==== PAYMENT PREVIEW ====
+Сумма:           ${formatUnits(amount, decimals)} MUSDT
+Комиссия:        ${formatUnits(commission, decimals)} MUSDT
+Итого к оплате:  ${formatUnits(totalPay, decimals)} MUSDT
+========================`;
+      } catch (e) {
+        previewMusdtEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
 
-        if (!silent) {
-          logStatusMusdt(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, musdtWallet=${musdtWallet}, bps=${bps}`);
-        }
+    // ---------- SEND payment (TON) ----------
+    sendBtn.addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+      if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
 
-        const ownerCheckEl = document.getElementById('ownerCheckMusdt');
-        if (currentWallet?.account?.address) {
-          try {
-            const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
-            const isOwner = walletAddr === owner;
+      const buyerAddrFromWallet = currentWallet.account.address;
+      setSendButtonLoading(true);
+      showPaymentExplorerLink(null, null);
 
-            ownerCheckEl.classList.remove('hidden');
-            if (isOwner) {
-              ownerCheckEl.textContent = '✓ Вы — владелец';
-              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
-              logStatusMusdt('✓ Подключенный кошелек является владельцем контракта');
-            } else {
-              ownerCheckEl.textContent = '✗ Вы не владелец';
-              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
-              logStatusMusdt('✗ Подключенный кошелек НЕ является владельцем контракта');
-            }
-          } catch (e) {
-            console.error('Owner check error:', e);
-            ownerCheckEl.classList.add('hidden');
-          }
-        } else {
-          ownerCheckEl.classList.add('hidden');
-        }
+      let totalPay, amount;
+      try {
+        const client = await rpcClientForCurrentNet();
+        amount = toNano(amountTonEl.value || '0');
+        const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
 
-        return { owner, mainWallet, nft, bps, musdtWallet };
+        const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
+
+        const commission = BigInt(res.stack.readNumber());
+        totalPay = BigInt(res.stack.readNumber()); // уже включает комиссию, если buyerPays = true
+
+        logStatus(`Amount: ${fromNano(amount)} TON`);
+        logStatus(`Commission: ${fromNano(commission)} TON`);
+        logStatus(`Total pay (to contract): ${fromNano(totalPay)} TON`);
+      } catch (e) {
+        logStatus('Ошибка получения комиссии: ' + (e?.message || e));
+        setSendButtonLoading(false);
+        return;
       }
 
-      document.getElementById('readConfigMusdtBtn').addEventListener('click', () =>
-        readConfigMusdt().catch(e => logStatusMusdt('getConfig error: ' + (e?.message || e)))
-      );
+      const reqBody = {
+        buyer: buyerAddrFromWallet,
+        seller: sellerEl.value.trim(),
+        amount: amount.toString(),
+        buyerPaysCommission: buyerPaysEl.value === 'true',
+        optionalCommissionWallet: (partnerEl.value || '').trim() || null
+      };
 
-      // ---------- READ: nonceOf ----------
-      document.getElementById('nonceBtn').addEventListener('click', async () => {
-        nonceOut.textContent = '';
-        try {
-          const addr = (contractAddressEl.value || '').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
+      let payloadBase64 = '';
+      try {
+        payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
+      } catch (e) {
+        logStatus('payload error: ' + (e?.message || e));
+        setSendButtonLoading(false);
+        return;
+      }
 
-          const who = (nonceAddrEl.value || '').trim();
-          if (!who) throw new Error('Укажите адрес аккаунта');
+      let networkFees = 0n;
+      try {
+        const hasPartner = !!reqBody.optionalCommissionWallet;
+        const outgoingCount = 1 + 1 + (hasPartner ? 1 : 0);
 
-          const client = await rpcClientForCurrentNet();
-          const cell = beginCell();
-          cell.storeAddress(Address.parse(who));
+        networkFees = await estimateFeesFull({
+          address: to,
+          bodyB64: payloadBase64,
+          outgoingCount,
+          hasOptionalWallet: hasPartner
+        });
+      } catch (e) {
+        logStatus('Ошибка естимации комиссии сети: ' + (e?.message || e));
+        setSendButtonLoading(false);
+        return;
+      }
+      console.log('Estimated network fees:', fromNano(networkFees), 'TON');
 
-          const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
-            { type: 'slice', cell: cell.endCell() }
-          ]);
+      const totalToSend = totalPay + networkFees;
+      logStatus(`Total to send: ${fromNano(totalToSend)} TON`);
 
-          const n = res.stack.readNumber();
-          nonceOut.textContent = `nonceOf(${who}) = ${n}`;
-        } catch (e) {
-          nonceOut.textContent = 'nonceOf error: ' + (e?.message || e);
-          console.error(e);
-        }
-      });
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: to,
+          amount: totalToSend.toString(),
+          payload: payloadBase64
+        }]
+      };
 
-      document.getElementById('nonceBtnMusdt').addEventListener('click', async () => {
-        nonceOutMusdt.textContent = '';
-        try {
-          const addr = (contractAddressMusdtEl.value || '').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
-
-          const who = (nonceAddrMusdtEl.value || '').trim();
-          if (!who) throw new Error('Укажите адрес аккаунта');
-
-          const client = await rpcClientForCurrentNet();
-          const cell = beginCell();
-          cell.storeAddress(Address.parse(who));
-
-          const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
-            { type: 'slice', cell: cell.endCell() }
-          ]);
-
-          const n = res.stack.readNumber();
-          nonceOutMusdt.textContent = `nonceOf(${who}) = ${n}`;
-        } catch (e) {
-          nonceOutMusdt.textContent = 'nonceOf error: ' + (e?.message || e);
-          console.error(e);
-        }
-      });
-
-      // ---------- ADMIN sends ----------
-      async function sendAdminMessage({ to, payloadBase64, value = '100000000' }) {
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [{
-            address: to,
-            amount: value,
-            payload: payloadBase64
-          }]
-        };
-        logStatus('Отправляем админ-транзакцию…');
-        const res = await tonConnectUI.sendTransaction(tx);
-        logStatus('Админ-транзакция отправлена.');
+      try {
+        logStatus('Отправляем платёж…');
+        await tonConnectUI.sendTransaction(tx);
+        logStatus('Платёж отправлен.');
         const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
         logStatus(`Tx explorer: ${baseExplorer}/${to}`);
         setTimeout(async () => {
-          const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+          const hash = await fetchLastTxHash(currentWallet.account.address);
           showPaymentExplorerLink(hash, to);
         }, 4000);
-        logStatus('Ожидание подтверждения (10 сек)...');
-
-        // Автообновление конфига через 10 секунд
-        setTimeout(async () => {
-          try {
-            logStatus('Обновляем конфиг...');
-            await readConfig();
-          } catch (e) {
-            logStatus('Не удалось обновить конфиг: ' + (e?.message || e));
-          }
-        }, 10000);
-
-        return res;
+      } catch (e) {
+        logStatus('Ошибка/отмена платежа: ' + (e?.message || e));
+        showPaymentExplorerLink(null, null);
+      } finally {
+        setSendButtonLoading(false);
       }
-
-      async function sendAdminMessageMusdt({ to, payloadBase64, value = '100000000' }) {
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [{
-            address: to,
-            amount: value,
-            payload: payloadBase64
-          }]
-        };
-        logStatusMusdt('Отправляем админ-транзакцию…');
-        const res = await tonConnectUI.sendTransaction(tx);
-        logStatusMusdt('Админ-транзакция отправлена.');
-        const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
-        logStatusMusdt(`Tx explorer: ${baseExplorer}/${to}`);
-        setTimeout(async () => {
-          const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
-          showPaymentExplorerLink(hash, to, paymentExplorerMusdtEl);
-        }, 4000);
-        logStatusMusdt('Ожидание подтверждения (10 сек)...');
-
-        setTimeout(async () => {
-          try {
-            logStatusMusdt('Обновляем конфиг...');
-            await readConfigMusdt({ silent: true });
-          } catch (e) {
-            logStatusMusdt('Не удалось обновить конфиг: ' + (e?.message || e));
-          }
-        }, 10000);
-
-        return res;
-      }
-
-      document.getElementById('sendSetBpsBtn').addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        const bps = Number(newBpsEl.value || '');
-        if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
-          alert('bps 0..10000');
-          return;
-        }
-
-        try {
-          const payload = await buildSetBpsPayload(bps);
-          await sendAdminMessage({ to, payloadBase64: payload });
-          logStatus(`SetBps отправлен: ${bps}`);
-        } catch (e) {
-          logStatus('SetBps error: ' + (e?.message || e));
-        }
-      });
-
-      document.getElementById('sendWithdrawAllBtn').addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        const wto = (withdrawToEl.value || '').trim();
-        if (!wto) { alert('Укажите адрес получателя'); return; }
-
-        try {
-          const payload = await buildWithdrawAllPayload(wto);
-          await sendAdminMessage({ to, payloadBase64: payload });
-          logStatus('WithdrawAll отправлен');
-        } catch (e) {
-          logStatus('WithdrawAll error: ' + (e?.message || e));
-        }
-      });
-
-      document.getElementById('sendSetOwnerBtn').addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        const newOwner = (newOwnerEl.value || '').trim();
-        if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
-
-        try {
-          const payload = await buildSetOwnerPayload(newOwner);
-          await sendAdminMessage({ to, payloadBase64: payload });
-          logStatus('SetOwner отправлен');
-        } catch (e) {
-          logStatus('SetOwner error: ' + (e?.message || e));
-        }
-      });
-
-      document.getElementById('sendSetBpsMusdtBtn').addEventListener('click', async () => {
-        const to = (contractAddressMusdtEl.value || '').trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        const bps = Number(newBpsMusdtEl.value || '');
-        if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
-          alert('bps 0..10000');
-          return;
-        }
-
-        try {
-          const payload = await buildSetBpsPayload(bps);
-          await sendAdminMessageMusdt({ to, payloadBase64: payload });
-          logStatusMusdt(`SetBps отправлен: ${bps}`);
-        } catch (e) {
-          logStatusMusdt('SetBps error: ' + (e?.message || e));
-        }
-      });
-
-      document.getElementById('sendWithdrawAllMusdtBtn').addEventListener('click', async () => {
-        const to = (contractAddressMusdtEl.value || '').trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        const wto = (withdrawToMusdtEl.value || '').trim();
-        if (!wto) { alert('Укажите адрес получателя'); return; }
-
-        try {
-          const payload = await buildWithdrawAllPayload(wto);
-          await sendAdminMessageMusdt({ to, payloadBase64: payload });
-          logStatusMusdt('WithdrawAll отправлен');
-        } catch (e) {
-          logStatusMusdt('WithdrawAll error: ' + (e?.message || e));
-        }
-      });
-
-      document.getElementById('sendSetOwnerMusdtBtn').addEventListener('click', async () => {
-        const to = (contractAddressMusdtEl.value || '').trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-
-        const newOwner = (newOwnerMusdtEl.value || '').trim();
-        if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
-
-        try {
-          const payload = await buildSetOwnerPayload(newOwner);
-          await sendAdminMessageMusdt({ to, payloadBase64: payload });
-          logStatusMusdt('SetOwner отправлен');
-        } catch (e) {
-          logStatusMusdt('SetOwner error: ' + (e?.message || e));
-        }
-      });
-
-      // ---------- Manifest sanity-check ----------
-      (async () => {
-        const statusEl = document.getElementById('manifest-status');
-        try {
-          const r = await fetch(manifestUrlFinal, { cache: 'no-store' });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const j = await r.json();
-          const origin = new URL(j.url, window.location.href).origin;
-          statusEl.textContent = (origin !== window.location.origin)
-            ? `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`
-            : '';
-        } catch (e) {
-          statusEl.textContent = `Манифест недоступен: ${e.message}`;
-        }
-      })();
-
-      logStatus('Приложение инициализировано');
-
-    }).catch(error => {
-      console.error('Init error:', error);
-      alert('Ошибка загрузки библиотек: ' + error.message);
     });
-  </script>
+
+    // ---------- SEND MUSDT payment ----------
+    sendMusdtBtn.addEventListener('click', async () => {
+      let to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+      if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
+
+      let master = (musdtMasterEl.value || '').trim();
+
+      let decimals;
+      try {
+        decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
+      } catch (e) {
+        alert(e.message);
+        return;
+      }
+
+      let amount;
+      try {
+        amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
+      } catch (e) {
+        alert(e?.message || e);
+        return;
+      }
+
+      if (amount <= 0n) { alert('Сумма должна быть > 0'); return; }
+
+      const buyerAddrFromWallet = currentWallet.account.address;
+      const buyerFriendly = buyerAddrFromWallet.includes(':')
+        ? Address.parse(buyerAddrFromWallet).toString()
+        : buyerAddrFromWallet;
+
+      setSendMusdtButtonLoading(true);
+      showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
+
+      let commission = 0n;
+      let totalPay = 0n;
+      try {
+        const client = await rpcClientForCurrentNet();
+        const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
+
+        const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
+
+        commission = BigInt(res.stack.readNumber());
+        totalPay = BigInt(res.stack.readNumber());
+
+        logStatusMusdt(`Amount: ${formatUnits(amount, decimals)} MUSDT`);
+        logStatusMusdt(`Commission: ${formatUnits(commission, decimals)} MUSDT`);
+      } catch (e) {
+        logStatusMusdt('Ошибка получения комиссии: ' + (e?.message || e));
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+
+      const reqBody = {
+        buyer: buyerFriendly,
+        seller: sellerMusdtEl.value.trim(),
+        amount: amount.toString(),
+        buyerPaysCommission: buyerPaysMusdtEl.value === 'true',
+        optionalCommissionWallet: (partnerMusdtEl.value || '').trim() || null
+      };
+
+      let payloadBase64 = '';
+      try {
+        payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
+      } catch (e) {
+        logStatusMusdt('payload error: ' + (e?.message || e));
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+
+      // jetton-кошелёк контракта и master берём из getConfig, если не указаны вручную
+      let musdtWalletAddr = (musdtWalletContractEl.value || '').trim();
+      try {
+        if (!musdtWalletAddr || !master) {
+          const cfg = await readConfigMusdt({ silent: true });
+          if (!musdtWalletAddr) musdtWalletAddr = cfg.musdtWallet;
+          if (!master) {
+            master = cfg.jettonMaster;
+            musdtMasterEl.value = master;
+          }
+        }
+      } catch (e) {
+        logStatusMusdt('Не удалось прочитать конфиг MUSDT: ' + (e?.message || e));
+      }
+
+      if (!musdtWalletAddr) {
+        alert('Прочитайте конфиг, чтобы узнать jetton-кошелёк контракта');
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+      if (!master) {
+        alert('Не удалось получить MUSDT master (ни из поля, ни из getConfig)');
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+
+      let buyerJettonWallet;
+      try {
+        buyerJettonWallet = await computeJettonWallet(master, buyerFriendly);
+      } catch (e) {
+        logStatusMusdt('Ошибка получения вашего MUSDT-кошелька: ' + (e?.message || e));
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+
+      const hasPartner = !!reqBody.optionalCommissionWallet;
+      const forwardAmount = calcForwardTonForMusdt({ hasPartner, commissionPositive: commission > 0n });
+      const txValue = forwardAmount + MUSDT_GAS_HEADROOM;
+      logStatusMusdt(`Forward TON: ${fromNano(forwardAmount)} (доп. ${fromNano(MUSDT_GAS_HEADROOM)} на газ кошелька)`);
+
+      const forwardPayloadCell = Cell.fromBoc(Buffer.from(payloadBase64, 'base64'))[0];
+      const jettonBody = beginCell();
+      jettonBody.storeUint(OPS.transfer_jetton, 32);
+      jettonBody.storeUint(0, 64);
+      jettonBody.storeCoins(totalPay);
+      jettonBody.storeAddress(Address.parse(to));
+      jettonBody.storeAddress(Address.parse(buyerFriendly));
+      jettonBody.storeMaybeRef(null);
+      jettonBody.storeCoins(forwardAmount);
+      jettonBody.storeMaybeRef(forwardPayloadCell);
+      const jettonPayloadBase64 = jettonBody.endCell().toBoc({ idx: false }).toString('base64');
+
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: buyerJettonWallet,
+          amount: txValue.toString(),
+          payload: jettonPayloadBase64
+        }]
+      };
+
+      try {
+        logStatusMusdt('Отправляем MUSDT платёж…');
+        await tonConnectUI.sendTransaction(tx);
+        logStatusMusdt('Платёж отправлен.');
+        setTimeout(async () => {
+          const hash = await fetchLastTxHash(currentWallet.account.address);
+          showPaymentExplorerLink(hash, musdtWalletAddr, paymentExplorerMusdtEl);
+        }, 4000);
+      } catch (e) {
+        logStatusMusdt('Ошибка/отмена платежа: ' + (e?.message || e));
+        showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
+      } finally {
+        setSendMusdtButtonLoading(false);
+      }
+    });
+
+    // ---------- READ: getConfig (TON) ----------
+    async function readConfig() {
+      const addr = (contractAddressEl.value || '').trim();
+      if (!addr) throw new Error('Укажите адрес контракта');
+
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+
+      const owner = res.stack.readAddress().toString({ bounceable: true });
+      const mainWallet = res.stack.readAddress().toString({ bounceable: true });
+      const nft = res.stack.readAddress().toString({ bounceable: true });
+      const bps = res.stack.readNumber();
+
+      currentOwnerEl.value = owner;
+      currentBpsEl.value = String(bps);
+      logStatus(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, bps=${bps}`);
+
+      const ownerCheckEl = document.getElementById('ownerCheck');
+      if (currentWallet?.account?.address) {
+        try {
+          const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
+          const isOwner = walletAddr === owner;
+
+          ownerCheckEl.classList.remove('hidden');
+          if (isOwner) {
+            ownerCheckEl.textContent = '✓ Вы — владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
+            logStatus('✓ Подключенный кошелек является владельцем контракта');
+          } else {
+            ownerCheckEl.textContent = '✗ Вы не владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
+            logStatus('✗ Подключенный кошелек НЕ является владельцем контракта');
+          }
+        } catch (e) {
+          console.error('Owner check error:', e);
+          ownerCheckEl.classList.add('hidden');
+        }
+      } else {
+        ownerCheckEl.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('readConfigBtn').addEventListener('click', () =>
+      readConfig().catch(e => logStatus('getConfig error: ' + (e?.message || e)))
+    );
+
+    // ---------- READ: getConfig (MUSDT / JettonPaymentProcessor) ----------
+    async function readConfigMusdt({ silent = false } = {}) {
+      const addr = (contractAddressMusdtEl.value || '').trim();
+      if (!addr) throw new Error('Укажите адрес контракта');
+
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+
+      const owner = res.stack.readAddress().toString({ bounceable: true });
+      const mainWallet = res.stack.readAddress().toString({ bounceable: true });
+      const nft = res.stack.readAddress().toString({ bounceable: true });
+      const bps = res.stack.readNumber();
+      const jettonMaster = res.stack.readAddress().toString({ bounceable: true });
+      const musdtWallet = res.stack.readAddress().toString({ bounceable: true });
+
+      currentOwnerMusdtEl.value = owner;
+      currentBpsMusdtEl.value = String(bps);
+      currentMusdtWalletEl.value = musdtWallet;
+      musdtWalletContractEl.value = musdtWallet;
+
+      // сразу подставим master в поле, чтобы совпадало с контрактом
+      if (!musdtMasterEl.value) musdtMasterEl.value = jettonMaster;
+
+      if (!silent) {
+        logStatusMusdt(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, jettonMaster=${jettonMaster}, musdtWallet=${musdtWallet}, bps=${bps}`);
+      }
+
+      const ownerCheckEl = document.getElementById('ownerCheckMusdt');
+      if (currentWallet?.account?.address) {
+        try {
+          const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
+          const isOwner = walletAddr === owner;
+
+          ownerCheckEl.classList.remove('hidden');
+          if (isOwner) {
+            ownerCheckEl.textContent = '✓ Вы — владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
+            logStatusMusdt('✓ Подключенный кошелек является владельцем контракта');
+          } else {
+            ownerCheckEl.textContent = '✗ Вы не владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
+            logStatusMusdt('✗ Подключенный кошелек НЕ является владельцем контракта');
+          }
+        } catch (e) {
+          console.error('Owner check error:', e);
+          ownerCheckEl.classList.add('hidden');
+        }
+      } else {
+        ownerCheckEl.classList.add('hidden');
+      }
+
+      return { owner, mainWallet, nft, bps, jettonMaster, musdtWallet };
+    }
+
+    document.getElementById('readConfigMusdtBtn').addEventListener('click', () =>
+      readConfigMusdt().catch(e => logStatusMusdt('getConfig error: ' + (e?.message || e)))
+    );
+
+    // ---------- READ: nonceOf ----------
+    document.getElementById('nonceBtn').addEventListener('click', async () => {
+      nonceOut.textContent = '';
+      try {
+        const addr = (contractAddressEl.value || '').trim();
+        if (!addr) throw new Error('Укажите адрес контракта');
+
+        const who = (nonceAddrEl.value || '').trim();
+        if (!who) throw new Error('Укажите адрес аккаунта');
+
+        const client = await rpcClientForCurrentNet();
+        const cell = beginCell();
+        cell.storeAddress(Address.parse(who));
+
+        const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
+          { type: 'slice', cell: cell.endCell() }
+        ]);
+
+        const n = res.stack.readNumber();
+        nonceOut.textContent = `nonceOf(${who}) = ${n}`;
+      } catch (e) {
+        nonceOut.textContent = 'nonceOf error: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
+
+    document.getElementById('nonceBtnMusdt').addEventListener('click', async () => {
+      nonceOutMusdt.textContent = '';
+      try {
+        const addr = (contractAddressMusdtEl.value || '').trim();
+        if (!addr) throw new Error('Укажите адрес контракта');
+
+        const who = (nonceAddrMusdtEl.value || '').trim();
+        if (!who) throw new Error('Укажите адрес аккаунта');
+
+        const client = await rpcClientForCurrentNet();
+        const cell = beginCell();
+        cell.storeAddress(Address.parse(who));
+
+        const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
+          { type: 'slice', cell: cell.endCell() }
+        ]);
+
+        const n = res.stack.readNumber();
+        nonceOutMusdt.textContent = `nonceOf(${who}) = ${n}`;
+      } catch (e) {
+        nonceOutMusdt.textContent = 'nonceOf error: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
+
+    // ---------- ADMIN sends ----------
+    async function sendAdminMessage({ to, payloadBase64, value = '100000000' }) {
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: to,
+          amount: value,
+          payload: payloadBase64
+        }]
+      };
+      logStatus('Отправляем админ-транзакцию…');
+      const res = await tonConnectUI.sendTransaction(tx);
+      logStatus('Админ-транзакция отправлена.');
+      const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+      logStatus(`Tx explorer: ${baseExplorer}/${to}`);
+      setTimeout(async () => {
+        const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+        showPaymentExplorerLink(hash, to);
+      }, 4000);
+      logStatus('Ожидание подтверждения (10 сек)...');
+
+      setTimeout(async () => {
+        try {
+          logStatus('Обновляем конфиг...');
+          await readConfig();
+        } catch (e) {
+          logStatus('Не удалось обновить конфиг: ' + (e?.message || e));
+        }
+      }, 10000);
+
+      return res;
+    }
+
+    async function sendAdminMessageMusdt({ to, payloadBase64, value = '100000000' }) {
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: to,
+          amount: value,
+          payload: payloadBase64
+        }]
+      };
+      logStatusMusdt('Отправляем админ-транзакцию…');
+      const res = await tonConnectUI.sendTransaction(tx);
+      logStatusMusdt('Админ-транзакция отправлена.');
+      const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+      logStatusMusdt(`Tx explorer: ${baseExplorer}/${to}`);
+      setTimeout(async () => {
+        const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+        showPaymentExplorerLink(hash, to, paymentExplorerMusdtEl);
+      }, 4000);
+      logStatusMusdt('Ожидание подтверждения (10 сек)...');
+
+      setTimeout(async () => {
+        try {
+          logStatusMusdt('Обновляем конфиг...');
+          await readConfigMusdt({ silent: true });
+        } catch (e) {
+          logStatusMusdt('Не удалось обновить конфиг: ' + (e?.message || e));
+        }
+      }, 10000);
+
+      return res;
+    }
+
+    document.getElementById('sendSetBpsBtn').addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const bps = Number(newBpsEl.value || '');
+      if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
+        alert('bps 0..10000');
+        return;
+      }
+
+      try {
+        const payload = await buildSetBpsPayload(bps);
+        await sendAdminMessage({ to, payloadBase64: payload });
+        logStatus(`SetBps отправлен: ${bps}`);
+      } catch (e) {
+        logStatus('SetBps error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendWithdrawAllBtn').addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const wto = (withdrawToEl.value || '').trim();
+      if (!wto) { alert('Укажите адрес получателя'); return; }
+
+      try {
+        const payload = await buildWithdrawAllPayload(wto);
+        await sendAdminMessage({ to, payloadBase64: payload });
+        logStatus('WithdrawAll отправлен');
+      } catch (e) {
+        logStatus('WithdrawAll error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendSetOwnerBtn').addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const newOwner = (newOwnerEl.value || '').trim();
+      if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
+
+      try {
+        const payload = await buildSetOwnerPayload(newOwner);
+        await sendAdminMessage({ to, payloadBase64: payload });
+        logStatus('SetOwner отправлен');
+      } catch (e) {
+        logStatus('SetOwner error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendSetBpsMusdtBtn').addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const bps = Number(newBpsMusdtEl.value || '');
+      if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
+        alert('bps 0..10000');
+        return;
+      }
+
+      try {
+        const payload = await buildSetBpsPayload(bps);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload });
+        logStatusMusdt(`SetBps отправлен: ${bps}`);
+      } catch (e) {
+        logStatusMusdt('SetBps error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendWithdrawAllMusdtBtn').addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const wto = (withdrawToMusdtEl.value || '').trim();
+      if (!wto) { alert('Укажите адрес получателя'); return; }
+
+      try {
+        const payload = await buildWithdrawAllPayload(wto);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload });
+        logStatusMusdt('WithdrawAll отправлен');
+      } catch (e) {
+        logStatusMusdt('WithdrawAll error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendSetOwnerMusdtBtn').addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const newOwner = (newOwnerMusdtEl.value || '').trim();
+      if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
+
+      try {
+        const payload = await buildSetOwnerPayload(newOwner);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload });
+        logStatusMusdt('SetOwner отправлен');
+      } catch (e) {
+        logStatusMusdt('SetOwner error: ' + (e?.message || e));
+      }
+    });
+
+    // ---------- Manifest sanity-check ----------
+    (async () => {
+      const statusEl = document.getElementById('manifest-status');
+      try {
+        const r = await fetch(manifestUrlFinal, { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        const origin = new URL(j.url, window.location.href).origin;
+        statusEl.textContent = (origin !== window.location.origin)
+          ? `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`
+          : '';
+      } catch (e) {
+        statusEl.textContent = `Манифест недоступен: ${e.message}`;
+      }
+    })();
+
+    logStatus('Приложение инициализировано');
+
+  }).catch(error => {
+    console.error('Init error:', error);
+    alert('Ошибка загрузки библиотек: ' + error.message);
+  });
+</script>
+
 </body>
 
 </html>

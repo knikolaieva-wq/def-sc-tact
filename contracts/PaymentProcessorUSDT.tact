@@ -1,13 +1,60 @@
 import "@stdlib/ownable";
+import "@stdlib/deploy";
 import "./Messages.tact";
 import "./Errors.tact";
-import "./common/messages.tact";
 
+// ===== Jetton messages (TEP-74) =====
+
+message(0xf8a7ea5) TokenTransfer {
+    queryId: Int as uint64;
+    amount: Int as coins;
+    destination: Address;
+    response_destination: Address;
+    custom_payload: Cell?;
+    forward_ton_amount: Int as coins;
+    forward_payload: Slice as remaining;
+}
+
+message(0x7362d09c) JettonTransferNotification {
+    queryId: Int as uint64 = 0;
+    amount: Int as coins;
+    sender: Address;
+    forwardPayload: Slice as remaining;
+}
+
+// ===== Helper for wallet calculation (из доки Tact) =====
+
+struct JettonWalletData {
+    status: Int as uint4;          // ВАЖНО: этого поля не было раньше
+    balance: Int as coins;
+    ownerAddress: Address;
+    jettonMasterAddress: Address;
+}
+
+fun calculateJettonWalletAddress(
+    ownerAddress: Address,
+    jettonMasterAddress: Address,
+    jettonWalletCode: Cell,
+): Address {
+    let initData = JettonWalletData{
+        status: 0,
+        balance: 0,
+        ownerAddress: ownerAddress,
+        jettonMasterAddress: jettonMasterAddress
+    };
+
+    return contractAddress(StateInit{
+        code: jettonWalletCode,
+        data: initData.toCell()
+    });
+}
 // ===== Messages =====
+
 message(0x42c20f7a) Transfer {
     req: PaymentRequest;
     deadline: Int;
 }
+
 message(0xeeab28d0) SetPlatformCommissionBps {
     newBps: Int;
 }
@@ -19,12 +66,13 @@ message(0xc2b41d43) SetOwner {
 }
 
 // ===== Structs =====
+
 struct PaymentRequest {
     buyer: Address;
     seller: Address;
-    amount: Int; // in jettons (MUSDT smallest units)
+    amount: Int as coins;          // в минимальных единицах Jetton
     buyerPaysCommission: Bool;
-    optionalCommissionWallet: Address?; // None if not used
+    optionalCommissionWallet: Address?;
 }
 
 struct Preview {
@@ -37,39 +85,50 @@ struct ConfigResponse {
     mainCommissionWallet: Address;
     nftCollection: Address;
     platformCommissionBps: Int;
-    musdtWallet: Address;
+    jettonMaster: Address;
+    jettonWallet: Address;
 }
 
-struct TransferPayload {
-    req: PaymentRequest;
-    deadline: Int;
-}
+// ===== Contract =====
 
-contract PaymentProcessorUSDT with Ownable {
+contract JettonPaymentProcessor with Ownable {
 
+    // === базовая логика, как в Ton-версии ===
     owner: Address;
-    platformCommissionBps: Int; // 0..10000
+    platformCommissionBps: Int;            // 0..10000
     mainCommissionWallet: Address;
 
-    partnerCollection: Address; // contract address implementing IDefNFT
+    partnerCollection: Address;            // IDefNFT коллекция
     partnerShareBps: map<Address, Int>;
 
-    // Simple per-buyer nonce storage
-    nonces: map<Address, Int>;
+    nonces: map<Address, Int>;             // per-buyer nonce
 
-    // MUSDT jetton wallet owned by this contract (pre-computed from MUSDT master)
-    musdtWallet: Address;
+    // === Jetton config ===
+    jettonMaster: Address;
+    jettonWalletCode: Cell;
+    jettonWallet: Address;                 // jetton wallet этого контракта
 
-    // Outgoing jetton transfers need enough TON attached for forward fees and wallet staticTax
-    const MUSDT_MSG_VALUE: Int = ton("0.05");
-    const PARTNER_NOTIFY_VALUE: Int = ton("0.005");
-
-    init(owner: Address, mainCommissionWallet: Address, partnerCollection: Address, musdtWallet: Address) {
+    init(
+        owner: Address,
+        mainCommissionWallet: Address,
+        partnerCollection: Address,
+        jettonMaster: Address,
+        jettonWalletCode: Cell
+    ) {
         self.owner = owner;
         self.mainCommissionWallet = mainCommissionWallet;
         self.partnerCollection = partnerCollection;
-        self.musdtWallet = musdtWallet;
-        self.platformCommissionBps = 25; // 0.25%
+        self.platformCommissionBps = 25;   // 0.25%
+
+        self.jettonMaster = jettonMaster;
+        self.jettonWalletCode = jettonWalletCode;
+
+        // считаем адрес Jetton-кошелька этого контракта
+        self.jettonWallet = calculateJettonWalletAddress(
+            myAddress(),
+            jettonMaster,
+            jettonWalletCode
+        );
     }
 
     // ==== Internal helpers ====
@@ -77,55 +136,9 @@ contract PaymentProcessorUSDT with Ownable {
         throwIf(ExitCodeNotCollection, sender() != self.partnerCollection);
     }
 
-    inline fun parseForwardPayload(payload: Cell): TransferPayload {
-        let s = payload.beginParse();
-        let op = s.loadUint(32);
-        throwIf(UnknownFunction, op != 0x42c20f7a); // Transfer opcode
-
-        let buyer = s.loadAddress();
-        let seller = s.loadAddress();
-        let amount = s.loadInt(257);
-        let buyerPays = s.loadBit();
-
-        let opt = s.loadRef().beginParse();
-        let rawOpt = opt.loadAddress();
-        let optionalWallet: Address? = null;
-        // addr_none encoded as 0b00; treat it as null
-        if (rawOpt.asSlice().preloadUint(2) != 0) {
-            optionalWallet = rawOpt;
-        }
-
-        let dl = s.loadRef().beginParse();
-        let deadline = dl.loadInt(257);
-
-        return TransferPayload{
-            req: PaymentRequest{
-                buyer: buyer,
-                seller: seller,
-                amount: amount,
-                buyerPaysCommission: buyerPays,
-                optionalCommissionWallet: optionalWallet
-            },
-            deadline: deadline
-        };
-    }
-
-    inline fun sendMusdt(to: Address, amount: Int) {
-        send(SendParameters{
-            to: self.musdtWallet,
-            value: self.MUSDT_MSG_VALUE,
-            mode: SendPayGasSeparately,
-            bounce: true,
-            body: TokenTransfer{
-                queryId: 0,
-                amount: amount,
-                destination: to,
-                responseDestination: myAddress(),
-                customPayload: null,
-                forwardAmount: 0,
-                forwardPayload: null
-            }.toCell()
-        });
+    inline fun onlyJettonWallet() {
+        // обязательно заведи в Errors.tact код, например ExitCodeNotJettonWallet
+        throwIf(ExitCodeNotJettonWallet, sender() != self.jettonWallet);
     }
 
     // ============ Admin ============
@@ -140,101 +153,149 @@ contract PaymentProcessorUSDT with Ownable {
         self.platformCommissionBps = m.newBps;
     }
 
+    // выводим весь TON (не Jetton!) с контракта
     receive(w: WithdrawAll) {
         self.requireOwner();
         let to = w.to;
         let bal = myBalance();
-        // Minimal balance to keep contract operational (rent + small gas headroom)
         let MIN_KEEP: Int = 10_000_000; // ~0.01 TON
         throwIf(BelowReserve, !(bal > MIN_KEEP));
         nativeReserve(MIN_KEEP, 0);
         send(SendParameters{ to: to, value: 0, mode: SendRemainingBalance });
     }
 
-    // ============ Payment entry (MUSDT jetton) ============
-    receive(n: TransferNotification) {
-        // only accept notifications from our MUSDT wallet
-        throwIf(InvalidSignature, sender() != self.musdtWallet);
-        throwIf(UnknownFunction, n.forwardPayload == null);
+    // ============ Приём платежа в Jetton ============
 
-        let parsed = self.parseForwardPayload(n.forwardPayload!!);
-        let req = parsed.req;
+    /// Входной поток:
+    /// buyer -> свой jetton wallet: TokenTransfer{ amount, destination = наш jettonWallet,
+    ///                                            forward_payload = Transfer{ req, deadline }.toCell() }
+    /// наш jettonWallet -> этот контракт: JettonTransferNotification{ amount, sender = buyer, forwardPayload }
+    receive(msg: JettonTransferNotification) {
+        // 1. Проверяем, что нотификация пришла от нашего кошелька нужного Jetton
+        self.onlyJettonWallet();
 
-        // Basic validation
-        throwIf(InvalidAmountValidation, n.amount <= 0);
+        // 2. Парсим наш "бизнес-пейлоад" из forwardPayload
+        let t: Transfer = Transfer.fromSlice(msg.forwardPayload);
+        let req = t.req;
+
+        // 3. Базовые проверки
         throwIf(InvalidAmountValidation, req.amount <= 0);
         throwIf(InvalidSellerValidation, req.seller == req.buyer);
-        throwIf(SignatureExpired, now() > parsed.deadline);
-        // Jetton wallet passes origin owner in sender field
-        throwIf(InvalidSignature, req.buyer != n.sender);
+        throwIf(SignatureExpired, now() > t.deadline);
 
-        // Nonce check & consume
+        // sender Jetton'ов — это настоящий покупатель
+        throwIf(InvalidSignature, msg.sender != req.buyer);
+
+        // 4. Nonce check & consume
         let currentNonce = self.nonces.get(req.buyer);
         let nextNonce: Int = (currentNonce != null) ? (currentNonce!! + 1) : 1;
         self.nonces.set(req.buyer, nextNonce);
 
-        let incomingJettons: Int = n.amount;
+        // 5. Сколько Jetton реально пришло на наш кошелёк
+        let incoming: Int = msg.amount;
+
+        // 6. Комиссия, суммы в Jetton
         let commission = (req.amount * self.platformCommissionBps) / 10000;
-        let sellerValueBase = req.buyerPaysCommission ? req.amount : (req.amount - commission);
-        let commissionValueBase = commission > 0 ? commission : 0;
-
-        // Validate that total payment covers amount (+ commission when buyer pays it)
+        let sellerValue = req.buyerPaysCommission ? req.amount : (req.amount - commission);
         let totalRequired = req.buyerPaysCommission ? (req.amount + commission) : req.amount;
-        throwIf(InvalidTotalAmountValidation, incomingJettons < totalRequired);
-        let extra = incomingJettons - totalRequired; // treat any overpay as seller tip
 
-        // Split commission if partner provided
-        let commissionValue = commissionValueBase;
+        throwIf(InvalidTotalAmountValidation, incoming < totalRequired);
+
+        let commissionValue: Int = commission > 0 ? commission : 0;
         let optionalPart: Int = 0;
+
+        // 7. Опциональная партнёрская комиссия
         if (req.optionalCommissionWallet != null) {
-            let optionalCommissionWallet = req.optionalCommissionWallet!!;
-            let shareOpt = self.partnerShareBps.get(optionalCommissionWallet);
+            let optionalWallet = req.optionalCommissionWallet!!;
+            let shareOpt = self.partnerShareBps.get(optionalWallet);
             let shareBps = shareOpt != null ? shareOpt!! : 0;
 
             if (shareBps > 0 && shareBps <= 10000) {
-                optionalPart = (commissionValue * shareBps) / 10000;
-                commissionValue -= optionalPart;
+                optionalPart = (commission * shareBps) / 10000;
+                commissionValue = commissionValue - optionalPart;
             }
         }
 
-        let sellerValue = sellerValueBase + extra;
+        // 8. Рассылаем Jetton'ы дальше через наш jettonWallet
+        let jw = self.jettonWallet;
 
-        // Ensure we have enough TON forwarded to cover jetton sends + partner ping
-        let incomingTon: Int = context().value;
-        let transfersCount: Int = 1 + (commissionValue > 0 ? 1 : 0) + (optionalPart > 0 ? 1 : 0);
-        let pingValue: Int = (optionalPart > 0) ? self.PARTNER_NOTIFY_VALUE : 0;
-        let tonNeeded: Int = (self.MUSDT_MSG_VALUE * transfersCount) + pingValue;
-        throwIf(BelowReserve, incomingTon < tonNeeded);
+        // Газ на каждую отправку Jetton (подбери под себя; главное — чтобы
+        // forward_ton_amount при исходном Transfer хватило и на нотификацию, и на эти вызовы)
+        let GAS_PER_TRANSFER: Int = ton("0.05");
 
-        let balBefore: Int = myBalance() - incomingTon;
-        let prev: Int = (balBefore > 0) ? balBefore : 0;
-        nativeReserve(prev, 0); // preserve previous balance; spend incoming on outgoing msgs
+        // 8.1. Выплата продавцу
+        send(SendParameters{
+            to: jw,
+            value: GAS_PER_TRANSFER,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: TokenTransfer{
+                queryId: 0,
+                amount: sellerValue,
+                destination: req.seller,
+                response_destination: myAddress(),
+                custom_payload: null,
+                forward_ton_amount: 0,
+                forward_payload: emptySlice()
+            }.toCell()
+        });
 
-        // Seller payout in MUSDT
-        self.sendMusdt(req.seller, sellerValue);
-
+        // 8.2. Платформа
         if (commissionValue > 0) {
-            self.sendMusdt(self.mainCommissionWallet, commissionValue);
-            if (optionalPart > 0) {
-                self.sendMusdt(req.optionalCommissionWallet!!, optionalPart);
+            send(SendParameters{
+                to: jw,
+                value: GAS_PER_TRANSFER,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: TokenTransfer{
+                    queryId: 1,
+                    amount: commissionValue,
+                    destination: self.mainCommissionWallet,
+                    response_destination: myAddress(),
+                    custom_payload: null,
+                    forward_ton_amount: 0,
+                    forward_payload: emptySlice()
+                }.toCell()
+            });
+        }
 
-                send(SendParameters{
-                    to: self.partnerCollection,
-                    value: self.PARTNER_NOTIFY_VALUE,
-                    mode: SendPayGasSeparately,
-                    bounce: true,
-                    body: IncrementSuccessfulTx{
-                        wallet: req.optionalCommissionWallet!!
-                    }.toCell()
-                });
-            }
+        // 8.3. Партнёрская часть + нотификация в коллекцию
+        if (optionalPart > 0) {
+            // Jetton партнёру
+            send(SendParameters{
+                to: jw,
+                value: GAS_PER_TRANSFER,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: TokenTransfer{
+                    queryId: 2,
+                    amount: optionalPart,
+                    destination: req.optionalCommissionWallet!!,
+                    response_destination: myAddress(),
+                    custom_payload: null,
+                    forward_ton_amount: ton("0.005"),
+                    forward_payload: emptySlice()
+                }.toCell()
+            });
+
+            // уведомление в partnerCollection (TON)
+            send(SendParameters{
+                to: self.partnerCollection,
+                value: ton("0.005"),
+                mode: SendPayGasSeparately,
+                bounce: true,
+                body: IncrementSuccessfulTx{
+                    wallet: req.optionalCommissionWallet!!
+                }.toCell()
+            });
         }
     }
+
+    // ============ Партнёры ============
 
     receive(msg: RegisterPartnerShare) {
         self.onlyCollection();
 
-        // Если share <= 0 — убираем из локального реестра
         if (msg.shareBps == null || msg.shareBps!! <= 0) {
             self.partnerShareBps.set(msg.wallet, null);
             return;
@@ -248,19 +309,16 @@ contract PaymentProcessorUSDT with Ownable {
         self.partnerShareBps.set(msg.wallet, null);
     }
 
-    // Quietly accept excess refunds from jetton wallets
-    receive(msg: Excesses) {
-        // no-op
-    }
-
     // ============ Views ============
+
     get fun getConfig(): ConfigResponse {
         return ConfigResponse{
             owner: self.owner,
             mainCommissionWallet: self.mainCommissionWallet,
             nftCollection: self.partnerCollection,
             platformCommissionBps: self.platformCommissionBps,
-            musdtWallet: self.musdtWallet
+            jettonMaster: self.jettonMaster,
+            jettonWallet: self.jettonWallet
         };
     }
 
@@ -273,5 +331,9 @@ contract PaymentProcessorUSDT with Ownable {
     get fun nonceOf(account: Address): Int {
         let n = self.nonces.get(account);
         return (n != null) ? n!! : 0;
+    }
+
+    get fun get_version(): Int {
+        return 1;
     }
 }

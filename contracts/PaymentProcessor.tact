@@ -201,4 +201,8 @@ contract PaymentProcessor with Ownable {
         let n = self.nonces.get(account);
         return (n != null) ? n!! : 0;
     }
+
+    get fun get_version(): Int {
+        return 1;
+    }
 }
