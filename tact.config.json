@@ -17,6 +17,12 @@
       "path": "contracts/PartnerNftItem.tact",
       "output": "build/nft",
       "bindings": "js"
+    },
+    {
+      "name": "Jetton",
+      "path": "contracts/jetton/jetton.tact",
+      "output": "build/jetton",
+      "bindings": "js"
     }
   ]
 }
