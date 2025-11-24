@@ -22,6 +22,10 @@ message(0x7362d09c) JettonTransferNotification {
     forwardPayload: Cell;
 }
 
+message(0xd53276db) Excess {
+    queryId: Int as uint64;
+}
+
 // ===== Helper for wallet calculation (из доки Tact) =====
 
 struct JettonWalletData {
@@ -162,11 +166,6 @@ contract JettonPaymentProcessor with Ownable {
     }
 
     // ============ Приём платежа в Jetton ============
-
-    /// Входной поток:
-    /// buyer -> свой jetton wallet: TokenTransfer{ amount, destination = наш jettonWallet,
-    ///                                            forward_payload = Transfer{ req, deadline }.toCell() }
-    /// наш jettonWallet -> этот контракт: JettonTransferNotification{ amount, sender = buyer, forwardPayload }
     receive(msg: JettonTransferNotification) {
         // 1. Проверяем, что нотификация пришла от нашего кошелька нужного Jetton
         self.onlyJettonWallet();
@@ -210,21 +209,19 @@ contract JettonPaymentProcessor with Ownable {
 
             if (shareBps > 0 && shareBps <= 10000) {
                 optionalPart = (commission * shareBps) / 10000;
-                commissionValue = commissionValue - optionalPart;
+                commissionValue -= optionalPart;
             }
         }
-
-        // 8. Рассылаем Jetton'ы дальше через наш jettonWallet
+        // 8. Выплаты в Jetton
         let jw = self.jettonWallet;
-
-        // Газ на каждую отправку Jetton (подбери под себя; главное — чтобы
-        // forward_ton_amount при исходном Transfer хватило и на нотификацию, и на эти вызовы)
-        let GAS_PER_TRANSFER: Int = ton("0.2");
+        let gasPerTransfer: Int = ton("0.05");
+        let gasPerIncrementation: Int = ton("0.005");
 
         // 8.1. Выплата продавцу
         send(SendParameters{
             to: jw,
-            value: GAS_PER_TRANSFER,
+            value: gasPerTransfer,
+
             bounce: true,
             mode: SendPayGasSeparately,
             body: TokenTransfer{
@@ -242,7 +239,7 @@ contract JettonPaymentProcessor with Ownable {
         if (commissionValue > 0) {
             send(SendParameters{
                 to: jw,
-                value: GAS_PER_TRANSFER,
+                value: gasPerTransfer,
                 bounce: true,
                 mode: SendPayGasSeparately,
                 body: TokenTransfer{
@@ -258,20 +255,21 @@ contract JettonPaymentProcessor with Ownable {
         }
 
         // 8.3. Партнёрская часть + нотификация в коллекцию
-        if (optionalPart > 0) {
+        if (optionalPart > 0 && req.optionalCommissionWallet != null) {
             // Jetton партнёру
+            let optionalWallet = req.optionalCommissionWallet!!;
             send(SendParameters{
                 to: jw,
-                value: GAS_PER_TRANSFER,
+                value: gasPerTransfer,
                 bounce: true,
                 mode: SendPayGasSeparately,
                 body: TokenTransfer{
                     queryId: 2,
                     amount: optionalPart,
-                    destination: req.optionalCommissionWallet!!,
+                    destination: optionalWallet,
                     response_destination: myAddress(),
                     custom_payload: null,
-                    forward_ton_amount: ton("0.005"),
+                    forward_ton_amount: 0,
                     forward_payload: null
                 }.toCell()
             });
@@ -279,14 +277,20 @@ contract JettonPaymentProcessor with Ownable {
             // уведомление в partnerCollection (TON)
             send(SendParameters{
                 to: self.partnerCollection,
-                value: ton("0.005"),
+                value: gasPerIncrementation,
                 mode: SendPayGasSeparately,
                 bounce: true,
                 body: IncrementSuccessfulTx{
-                    wallet: req.optionalCommissionWallet!!
+                    wallet: optionalWallet
                 }.toCell()
             });
         }
+    }
+
+    // в контракте JettonPaymentProcessor
+    receive(_: Excess) {
+        // просто молча принимаем лишний газ
+        // можно ничего не делать
     }
 
     // ============ Партнёры ============
