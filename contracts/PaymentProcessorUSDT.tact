@@ -40,9 +40,6 @@ message(0xe225cbda) WithdrawAll {
 message(0xc2b41d43) SetOwner {
     newOwner: Address;
 }
-message(0xccd3ca15) SetJettonWallet {
-    newWallet: Address;
-}
 
 // ===== Structs =====
 
@@ -68,6 +65,32 @@ struct ConfigResponse {
     jettonWallet: Address;
 }
 
+// ===== Helper for wallet calculation (from Tact docs) =====
+struct JettonWalletData {
+    balance: Int as coins;
+    ownerAddress: Address;
+    jettonMasterAddress: Address;
+    jettonWalletCode: Cell;
+}
+
+inline fun calculateJettonWalletAddress(
+    ownerAddress: Address,
+    jettonMaster: Address,
+    jettonWalletCode: Cell,
+): Address {
+    let initData = JettonWalletData{
+        balance: 0,
+        ownerAddress: ownerAddress,
+        jettonMasterAddress: jettonMaster,
+        jettonWalletCode: jettonWalletCode
+    };
+
+    return contractAddress(StateInit{
+        code: jettonWalletCode,
+        data: initData.toCell()
+    });
+}
+
 // ===== Contract =====
 
 contract JettonPaymentProcessor with Ownable {
@@ -89,14 +112,15 @@ contract JettonPaymentProcessor with Ownable {
         owner: Address,
         mainCommissionWallet: Address,
         partnerCollection: Address,
-        jettonMaster: Address
+        jettonMaster: Address,
+        jettonWalletCode: Cell
     ) {
         self.owner = owner;
         self.mainCommissionWallet = mainCommissionWallet;
         self.partnerCollection = partnerCollection;
         self.platformCommissionBps = 25;   // 0.25%
         self.jettonMaster = jettonMaster;
-        self.jettonWallet = myAddress();
+        self.jettonWallet = calculateJettonWalletAddress(myAddress(), jettonMaster, jettonWalletCode);
     }
 
     // ==== Internal helpers ====
@@ -118,11 +142,6 @@ contract JettonPaymentProcessor with Ownable {
         self.requireOwner();
         throwIf(InvalidCommissionBps, !(m.newBps >= 0 && m.newBps <= 10000));
         self.platformCommissionBps = m.newBps;
-    }
-    
-    receive(m: SetJettonWallet) {
-        self.requireOwner();
-        self.jettonWallet = m.newWallet;
     }
 
     // withdraw all TON (not jetton) from the contract

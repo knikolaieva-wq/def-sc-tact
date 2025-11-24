@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Payment (TON & MUSDT) — Pay + Admin + Views</title>
+  <title>Payment (TON & USDT) — Pay + Admin + Views</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
   <script src="/config.js"></script>
@@ -44,7 +44,7 @@
   <div class="max-w-6xl mx-auto p-6 space-y-8">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-3xl font-bold">Payment (TON & MUSDT)</h1>
+        <h1 class="text-3xl font-bold">Payment (TON & USDT)</h1>
         <p id="netInfo" class="text-gray-600">Сеть: TON Testnet</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
@@ -75,7 +75,7 @@
         <button data-tab="ton"
           class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 bg-black text-white">TON</button>
         <button data-tab="musdt"
-          class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 text-gray-800">MUSDT</button>
+          class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 text-gray-800">USDT</button>
       </div>
 
       <div id="tab-ton" class="space-y-8">
@@ -231,10 +231,10 @@
       </div>
 
       <div id="tab-musdt" class="space-y-8 hidden">
-        <!-- === MUSDT ПЛАТЁЖ === -->
+        <!-- === USDT ПЛАТЁЖ === -->
         <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold">Платёж (MUSDT)</h2>
+            <h2 class="text-xl font-semibold">Платёж (USDT)</h2>
             <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500 text-white">Jetton flow</span>
           </div>
 
@@ -246,7 +246,7 @@
                 placeholder="EQC…" />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">MUSDT master (для вычисления вашего jetton-кошелька)</span>
+              <span class="text-sm font-medium">USDT master (для вычисления вашего jetton-кошелька)</span>
               <input id="musdtMaster"
                 class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
                 placeholder="EQC…" />
@@ -264,13 +264,13 @@
                 placeholder="(опц.) EQC…" />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Сумма к оплате (MUSDT)</span>
+              <span class="text-sm font-medium">Сумма к оплате (USDT)</span>
               <input id="amountMusdt" type="number" min="0" step="0.000001"
                 class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
                 placeholder="10.5" />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium">Десятичных знаков у MUSDT</span>
+              <span class="text-sm font-medium">Десятичных знаков у USDT</span>
               <input id="musdtDecimals" type="number" min="0" max="18"
                 class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
                 placeholder="например, 9" />
@@ -298,7 +298,7 @@
             <button id="sendMusdtBtn"
               class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
               disabled>
-              <span id="sendMusdtBtnText">Оплатить MUSDT</span>
+              <span id="sendMusdtBtnText">Оплатить USDT</span>
               <svg id="sendMusdtBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
@@ -327,10 +327,10 @@
           </div>
         </section>
 
-        <!-- === MUSDT АДМИНКА === -->
+        <!-- === USDT АДМИНКА === -->
         <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold">Админка (MUSDT)</h2>
+            <h2 class="text-xl font-semibold">Админка (USDT)</h2>
             <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500 text-white">Owner-only</span>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -356,55 +356,52 @@
               <input id="currentMusdtWallet" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
                 disabled />
             </label>
-            <label class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1 md:col-span-2">
               <span class="text-sm font-medium">Новый jetton-кошелёк</span>
-              <input id="newJettonWalletMusdt"
-                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-                placeholder="EQC…" />
-            </label>
-            <div class="flex items-end gap-3">
-              <button id="fetchJettonWalletFromMasterBtn"
-                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Получить
-                из master</button>
-              <button id="sendSetJettonWalletMusdtBtn"
-                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled>Установить jetton wallet</button>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="newJettonWalletMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC…" />
+                <button id="fetchJettonWalletFromMasterBtn"
+                  class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Получить
+                  из master</button>
+              </div>
             </div>
 
-            <label class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1 md:col-span-2">
               <span class="text-sm font-medium">Новый bps</span>
-              <input id="newBpsMusdt" type="number" min="0" max="10000"
-                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-                placeholder="например, 35" />
-            </label>
-            <div class="flex items-end gap-3">
-              <button id="sendSetBpsMusdtBtn"
-                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled>Установить bps</button>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="newBpsMusdt" type="number" min="0" max="10000"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="например, 35" />
+                <button id="sendSetBpsMusdtBtn"
+                  class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled>Установить bps</button>
+              </div>
             </div>
 
-            <label class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1 md:col-span-2">
               <span class="text-sm font-medium">Вывести все средства на адрес</span>
-              <input id="withdrawToMusdt"
-                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-                placeholder="EQC…" />
-            </label>
-            <div class="flex items-end gap-3">
-              <button id="sendWithdrawAllMusdtBtn"
-                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled>Вывести</button>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="withdrawToMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC…" />
+                <button id="sendWithdrawAllMusdtBtn"
+                  class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled>Вывести</button>
+              </div>
             </div>
 
-            <label class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1 md:col-span-2">
               <span class="text-sm font-medium">Новый овнер</span>
-              <input id="newOwnerMusdt"
-                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-                placeholder="EQC…" />
-            </label>
-            <div class="flex items-end gap-3">
-              <button id="sendSetOwnerMusdtBtn"
-                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled>Сменить овнера</button>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="newOwnerMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC…" />
+                <button id="sendSetOwnerMusdtBtn"
+                  class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled>Сменить овнера</button>
+              </div>
             </div>
           </div>
 
@@ -451,7 +448,7 @@
   // ---------- CONSTANTS / HELPERS ----------
   const MUSDT_MSG_VALUE = toNano('0.05');
   const MUSDT_PING_VALUE = toNano('0.005');
-  const MUSDT_GAS_HEADROOM = toNano('0.05'); // запас для jetton-кошелька отправителя
+  const MUSDT_GAS_HEADROOM = toNano('0.1'); // запас для jetton-кошелька отправителя
   const DEFAULT_MUSDT_DECIMALS = 9;
 
   const tabSections = {
@@ -746,8 +743,7 @@
 
       const buttons = [
         'sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn',
-        'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn',
-        'sendSetJettonWalletMusdtBtn'
+        'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn'
       ];
       buttons.forEach((btnId) => {
         const btn = document.getElementById(btnId);
@@ -851,7 +847,6 @@
     const nonceAddrMusdtEl = document.getElementById('nonceAddrMusdt');
     const nonceBtnMusdt = document.getElementById('nonceBtnMusdt');
     const nonceOutMusdt = document.getElementById('nonceOutMusdt');
-    const sendSetJettonWalletMusdtBtn = document.getElementById('sendSetJettonWalletMusdtBtn');
     const fetchJettonWalletFromMasterBtn = document.getElementById('fetchJettonWalletFromMasterBtn');
 
     function setSendButtonLoading(isLoading) {
@@ -880,7 +875,7 @@
         const restore = sendMusdtBtn.dataset.restoreDisabled === '1';
         sendMusdtBtn.disabled = restore;
         sendMusdtBtnSpinner?.classList.add('hidden');
-        if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Оплатить MUSDT';
+        if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Оплатить USDT';
       }
     }
 
@@ -954,7 +949,7 @@
       }
     });
 
-    // ---------- PREVIEW MUSDT ----------
+    // ---------- PREVIEW USDT ----------
     previewMusdtBtn.addEventListener('click', async () => {
       try {
         const addr = (contractAddressMusdtEl.value || '').trim();
@@ -975,9 +970,9 @@
 
         previewMusdtEl.textContent =
           `==== PAYMENT PREVIEW ====
-Сумма:           ${formatUnits(amount, decimals)} MUSDT
-Комиссия:        ${formatUnits(commission, decimals)} MUSDT
-Итого к оплате:  ${formatUnits(totalPay, decimals)} MUSDT
+Сумма:           ${formatUnits(amount, decimals)} USDT
+Комиссия:        ${formatUnits(commission, decimals)} USDT
+Итого к оплате:  ${formatUnits(totalPay, decimals)} USDT
 ========================`;
       } catch (e) {
         previewMusdtEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
@@ -1083,7 +1078,7 @@
       }
     });
 
-    // ---------- SEND MUSDT payment ----------
+    // ---------- SEND USDT payment ----------
     sendMusdtBtn.addEventListener('click', async () => {
       let to = (contractAddressMusdtEl.value || '').trim();
       if (!to) { alert('Укажите адрес контракта'); return; }
@@ -1131,8 +1126,8 @@
         commission = BigInt(res.stack.readNumber());
         totalPay = BigInt(res.stack.readNumber());
 
-        logStatusMusdt(`Amount: ${formatUnits(amount, decimals)} MUSDT`);
-        logStatusMusdt(`Commission: ${formatUnits(commission, decimals)} MUSDT`);
+        logStatusMusdt(`Amount: ${formatUnits(amount, decimals)} USDT`);
+        logStatusMusdt(`Commission: ${formatUnits(commission, decimals)} USDT`);
       } catch (e) {
         logStatusMusdt('Ошибка получения комиссии: ' + (e?.message || e));
         setSendMusdtButtonLoading(false);
@@ -1168,7 +1163,7 @@
           }
         }
       } catch (e) {
-        logStatusMusdt('Не удалось прочитать конфиг MUSDT: ' + (e?.message || e));
+        logStatusMusdt('Не удалось прочитать конфиг USDT: ' + (e?.message || e));
       }
 
       if (!musdtWalletAddr) {
@@ -1177,7 +1172,7 @@
         return;
       }
       if (!master) {
-        alert('Не удалось получить MUSDT master (ни из поля, ни из getConfig)');
+        alert('Не удалось получить USDT master (ни из поля, ни из getConfig)');
         setSendMusdtButtonLoading(false);
         return;
       }
@@ -1186,7 +1181,7 @@
       try {
         buyerJettonWallet = await computeJettonWallet(master, buyerFriendly);
       } catch (e) {
-        logStatusMusdt('Ошибка получения вашего MUSDT-кошелька: ' + (e?.message || e));
+        logStatusMusdt('Ошибка получения вашего USDT-кошелька: ' + (e?.message || e));
         setSendMusdtButtonLoading(false);
         return;
       }
@@ -1218,7 +1213,7 @@
       };
 
       try {
-        logStatusMusdt('Отправляем MUSDT платёж…');
+        logStatusMusdt('Отправляем USDT платёж…');
         await tonConnectUI.sendTransaction(tx);
         logStatusMusdt('Платёж отправлен.');
         setTimeout(async () => {
@@ -1279,7 +1274,7 @@
       readConfig().catch(e => logStatus('getConfig error: ' + (e?.message || e)))
     );
 
-    // ---------- READ: getConfig (MUSDT / JettonPaymentProcessor) ----------
+    // ---------- READ: getConfig (USDT / JettonPaymentProcessor) ----------
     async function readConfigMusdt({ silent = false } = {}) {
       const addr = (contractAddressMusdtEl.value || '').trim();
       if (!addr) throw new Error('Укажите адрес контракта');
@@ -1508,7 +1503,7 @@
       const master = (musdtMasterEl.value || '').trim();
       const contractAddr = (contractAddressMusdtEl.value || '').trim();
       if (!contractAddr) { alert('Укажите адрес контракта'); return; }
-      if (!master) { alert('Укажите MUSDT master'); return; }
+      if (!master) { alert('Укажите USDT master'); return; }
 
       try {
         const wallet = await computeJettonWallet(master, contractAddr);
@@ -1518,22 +1513,6 @@
         saveFormData();
       } catch (e) {
         logStatusMusdt('Ошибка получения jetton wallet: ' + (e?.message || e));
-      }
-    });
-
-    sendSetJettonWalletMusdtBtn?.addEventListener('click', async () => {
-      const to = (contractAddressMusdtEl.value || '').trim();
-      if (!to) { alert('Укажите адрес контракта'); return; }
-
-      const newWallet = (newJettonWalletMusdtEl.value || '').trim();
-      if (!newWallet) { alert('Укажите новый jetton-кошелёк'); return; }
-
-      try {
-        const payload = await buildSetJettonWalletPayload(newWallet);
-        await sendAdminMessageMusdt({ to, payloadBase64: payload, value: toNano('0.05').toString() });
-        logStatusMusdt('SetJettonWallet отправлен');
-      } catch (e) {
-        logStatusMusdt('SetJettonWallet error: ' + (e?.message || e));
       }
     });
 

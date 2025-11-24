@@ -19,13 +19,17 @@ export async function run(provider: NetworkProvider) {
   const mainWallet = Address.parse(requireEnv('MAIN_COMMISSION_WALLET'));
   const nftCollection = Address.parse(requireEnv('NFT_COLLECTION'));
   const jettonMaster = Address.parse(requireEnv('USDT'));
+  const walletCodeHex = requireEnv('USDT_WALLET_CODE_HEX');
+
+  const jettonWalletCode = Cell.fromBoc(Buffer.from(walletCodeHex, 'hex'))[0];
 
   const contract = provider.open(
     await JettonPaymentProcessor.fromInit(
       owner,
       mainWallet,
       nftCollection,
-      jettonMaster
+      jettonMaster,
+      jettonWalletCode
     ),
   );
 
