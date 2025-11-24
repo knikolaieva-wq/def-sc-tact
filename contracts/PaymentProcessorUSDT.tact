@@ -1,10 +1,8 @@
 import "@stdlib/ownable";
-import "@stdlib/deploy";
 import "./Messages.tact";
 import "./Errors.tact";
 
 // ===== Jetton messages (TEP-74) =====
-
 message(0xf8a7ea5) TokenTransfer {
     queryId: Int as uint64;
     amount: Int as coins;
@@ -26,38 +24,12 @@ message(0xd53276db) Excess {
     queryId: Int as uint64;
 }
 
-// ===== Helper for wallet calculation (из доки Tact) =====
-
-struct JettonWalletData {
-    status: Int as uint4;          // ВАЖНО: этого поля не было раньше
-    balance: Int as coins;
-    ownerAddress: Address;
-    jettonMasterAddress: Address;
-}
-
-fun calculateJettonWalletAddress(
-    ownerAddress: Address,
-    jettonMasterAddress: Address,
-    jettonWalletCode: Cell,
-): Address {
-    let initData = JettonWalletData{
-        status: 0,
-        balance: 0,
-        ownerAddress: ownerAddress,
-        jettonMasterAddress: jettonMasterAddress
-    };
-
-    return contractAddress(StateInit{
-        code: jettonWalletCode,
-        data: initData.toCell()
-    });
-}
-// ===== Messages =====
-
 message(0x42c20f7a) Transfer {
     req: PaymentRequest;
     deadline: Int;
 }
+
+// ===== Internal messages =====
 
 message(0xeeab28d0) SetPlatformCommissionBps {
     newBps: Int;
@@ -77,7 +49,7 @@ message(0xccd3ca15) SetJettonWallet {
 struct PaymentRequest {
     buyer: Address;
     seller: Address;
-    amount: Int;          // в минимальных единицах Jetton
+    amount: Int;
     buyerPaysCommission: Bool;
     optionalCommissionWallet: Address?;
 }
@@ -99,20 +71,19 @@ struct ConfigResponse {
 // ===== Contract =====
 
 contract JettonPaymentProcessor with Ownable {
-
-    // === базовая логика, как в Ton-версии ===
+    // === Core logic, same as TON version ===
     owner: Address;
     platformCommissionBps: Int;            // 0..10000
     mainCommissionWallet: Address;
 
-    partnerCollection: Address;            // IDefNFT коллекция
+    partnerCollection: Address;            // IDefNFT collection
     partnerShareBps: map<Address, Int>;
 
     nonces: map<Address, Int>;             // per-buyer nonce
 
     // === Jetton config ===
-    jettonMaster: Address;                 // адрес контракта Jetton Master
-    jettonWallet: Address;                 // jetton wallet этого контракта
+    jettonMaster: Address;                 // Jetton Master contract address
+    jettonWallet: Address;                 // jetton wallet owned by this contract
 
     init(
         owner: Address,
@@ -154,7 +125,7 @@ contract JettonPaymentProcessor with Ownable {
         self.jettonWallet = m.newWallet;
     }
 
-    // выводим весь TON (не Jetton!) с контракта
+    // withdraw all TON (not jetton) from the contract
     receive(w: WithdrawAll) {
         self.requireOwner();
         let to = w.to;
@@ -165,22 +136,22 @@ contract JettonPaymentProcessor with Ownable {
         send(SendParameters{ to: to, value: 0, mode: SendRemainingBalance });
     }
 
-    // ============ Приём платежа в Jetton ============
+    // ============ Jetton payment handling ============
     receive(msg: JettonTransferNotification) {
-        // 1. Проверяем, что нотификация пришла от нашего кошелька нужного Jetton
+        // 1. Verify the notification came from our jetton wallet
         self.onlyJettonWallet();
 
-        // 2. Парсим наш "бизнес-пейлоад" из forwardPayload
-         let slice = msg.forwardPayload.beginParse();
+        // 2. Parse business payload from forwardPayload
+        let slice = msg.forwardPayload.beginParse();
         let t: Transfer = Transfer.fromSlice(slice);
         let req = t.req;
 
-        // 3. Базовые проверки
+        // 3. Basic validation
         throwIf(InvalidAmountValidation, req.amount <= 0);
         throwIf(InvalidSellerValidation, req.seller == req.buyer);
         throwIf(SignatureExpired, now() > t.deadline);
 
-        // sender Jetton'ов — это настоящий покупатель
+        // Jetton sender must be the real buyer
         throwIf(InvalidSignature, msg.sender != req.buyer);
 
         // 4. Nonce check & consume
@@ -188,10 +159,10 @@ contract JettonPaymentProcessor with Ownable {
         let nextNonce: Int = (currentNonce != null) ? (currentNonce!! + 1) : 1;
         self.nonces.set(req.buyer, nextNonce);
 
-        // 5. Сколько Jetton реально пришло на наш кошелёк
+        // 5. How many jettons actually arrived
         let incoming: Int = msg.amount;
 
-        // 6. Комиссия, суммы в Jetton
+        // 6. Commission and jetton sums
         let commission = (req.amount * self.platformCommissionBps) / 10000;
         let sellerValue = req.buyerPaysCommission ? req.amount : (req.amount - commission);
         let totalRequired = req.buyerPaysCommission ? (req.amount + commission) : req.amount;
@@ -201,7 +172,7 @@ contract JettonPaymentProcessor with Ownable {
         let commissionValue: Int = commission > 0 ? commission : 0;
         let optionalPart: Int = 0;
 
-        // 7. Опциональная партнёрская комиссия
+        // 7. Optional partner commission
         if (req.optionalCommissionWallet != null) {
             let optionalWallet = req.optionalCommissionWallet!!;
             let shareOpt = self.partnerShareBps.get(optionalWallet);
@@ -212,12 +183,12 @@ contract JettonPaymentProcessor with Ownable {
                 commissionValue -= optionalPart;
             }
         }
-        // 8. Выплаты в Jetton
+        // 8. Jetton payouts
         let jw = self.jettonWallet;
         let gasPerTransfer: Int = ton("0.05");
         let gasPerIncrementation: Int = ton("0.005");
 
-        // 8.1. Выплата продавцу
+        // 8.1. Pay seller
         send(SendParameters{
             to: jw,
             value: gasPerTransfer,
@@ -235,7 +206,7 @@ contract JettonPaymentProcessor with Ownable {
             }.toCell()
         });
 
-        // 8.2. Платформа
+        // 8.2. Platform
         if (commissionValue > 0) {
             send(SendParameters{
                 to: jw,
@@ -254,9 +225,9 @@ contract JettonPaymentProcessor with Ownable {
             });
         }
 
-        // 8.3. Партнёрская часть + нотификация в коллекцию
+        // 8.3. Partner part + notification to the collection
         if (optionalPart > 0 && req.optionalCommissionWallet != null) {
-            // Jetton партнёру
+            // Jetton to partner
             let optionalWallet = req.optionalCommissionWallet!!;
             send(SendParameters{
                 to: jw,
@@ -274,7 +245,7 @@ contract JettonPaymentProcessor with Ownable {
                 }.toCell()
             });
 
-            // уведомление в partnerCollection (TON)
+            // Notify partnerCollection (TON)
             send(SendParameters{
                 to: self.partnerCollection,
                 value: gasPerIncrementation,
@@ -287,13 +258,13 @@ contract JettonPaymentProcessor with Ownable {
         }
     }
 
-    // в контракте JettonPaymentProcessor
+    // Inside JettonPaymentProcessor contract
     receive(_: Excess) {
-        // просто молча принимаем лишний газ
-        // можно ничего не делать
+        // silently accept extra gas
+        // nothing else to do
     }
 
-    // ============ Партнёры ============
+    // ============ Partners ============
 
     receive(msg: RegisterPartnerShare) {
         self.onlyCollection();
