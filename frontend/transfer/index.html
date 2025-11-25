@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Payment (TON) — Pay + Admin + Views</title>
+  <title>Payment (TON & USDT) — Pay + Admin + Views</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
   <script src="/config.js"></script>
@@ -44,7 +44,7 @@
   <div class="max-w-6xl mx-auto p-6 space-y-8">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-3xl font-bold">Payment (TON)</h1>
+        <h1 class="text-3xl font-bold">Payment (TON & USDT)</h1>
         <p id="netInfo" class="text-gray-600">Сеть: TON Testnet</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
@@ -71,155 +71,347 @@
         кодируются локально.
       </div>
 
-      <!-- === ПЛАТЁЖ === -->
-      <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold">Платёж</h2>
-          <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">User flow</span>
-        </div>
+      <div class="inline-flex rounded-2xl border border-gray-200 bg-white shadow p-1 text-sm font-medium">
+        <button data-tab="ton"
+          class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 bg-black text-white">TON</button>
+        <button data-tab="musdt"
+          class="tab-btn px-4 py-2 rounded-xl transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/50 text-gray-800">USDT</button>
+      </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
-            <input id="contractAddress"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Адрес продавца (seller)</span>
-            <input id="seller"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
-            <input id="partner"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="(опц.) EQC…" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Сумма к оплате (TON)</span>
-            <input id="amountTon" type="number" min="0" step="0.000000001"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="1.5" />
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Кто платит комиссию</span>
-            <select id="buyerPays"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
-              <option value="true">Покупатель</option>
-              <option value="false">Продавец</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <button id="previewOnchainBtn"
-            class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
-            платежа</button>
-          <button id="sendBtn"
-            class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled>
-            <span id="sendBtnText">Оплатить</span>
-            <svg id="sendBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
-            </svg>
-          </button>
-          <div id="paymentExplorer" class="text-sm text-emerald-700 font-medium hidden"></div>
-        </div>
-
-        <div class="grid md:grid-cols-2 gap-6">
-          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
-            <div class="font-semibold mb-2">Предпросмотр</div>
-            <pre id="preview" class="text-sm"></pre>
+      <div id="tab-ton" class="space-y-8">
+        <!-- === ПЛАТЁЖ === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Платёж</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">User flow</span>
           </div>
-          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
-            <div class="font-semibold mb-2">Nonce</div>
-            <div class="flex items-center gap-3 mb-2">
-              <input id="nonceAddr"
-                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
-                placeholder="EQC… (по умолчанию — адрес кошелька)" />
-              <button id="nonceBtn"
-                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
-                nonceOf</button>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес контракта (PaymentProcessor)</span>
+              <input id="contractAddress"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес продавца (seller)</span>
+              <input id="seller"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
+              <input id="partner"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="(опц.) EQC…" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Сумма к оплате (TON)</span>
+              <input id="amountTon" type="number" min="0" step="0.000000001"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="1.5" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Кто платит комиссию</span>
+              <select id="buyerPays"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
+                <option value="true">Покупатель</option>
+                <option value="false">Продавец</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="previewOnchainBtn"
+              class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
+              платежа</button>
+            <button id="sendBtn"
+              class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled>
+              <span id="sendBtnText">Оплатить</span>
+              <svg id="sendBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
+              </svg>
+            </button>
+            <div id="paymentExplorer" class="text-sm text-emerald-700 font-medium hidden"></div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Предпросмотр</div>
+              <pre id="preview" class="text-sm"></pre>
             </div>
-            <pre id="nonceOut" class="text-sm"></pre>
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Nonce</div>
+              <div class="flex items-center gap-3 mb-2">
+                <input id="nonceAddr"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC… (по умолчанию — адрес кошелька)" />
+                <button id="nonceBtn"
+                  class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                  nonceOf</button>
+              </div>
+              <pre id="nonceOut" class="text-sm"></pre>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- === АДМИНКА === -->
-      <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold">Админка</h2>
-          <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="flex items-end gap-3 md:col-span-2">
-            <button id="readConfigBtn"
-              class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
-              конфиг</button>
-            <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+        <!-- === АДМИНКА === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Админка</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-black text-white">Owner-only</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="readConfigBtn"
+                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                конфиг</button>
+              <div id="ownerCheck" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Текущий bps</span>
+              <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Овнер</span>
+              <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый bps</span>
+              <input id="newBps" type="number" min="0" max="10000"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="например, 35" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetBpsBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Установить bps</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Вывести все средства на адрес</span>
+              <input id="withdrawTo"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendWithdrawAllBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Вывести</button>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Новый овнер</span>
+              <input id="newOwner"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <div class="flex items-end gap-3">
+              <button id="sendSetOwnerBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled>Сменить овнера</button>
+            </div>
           </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Текущий bps</span>
-            <input id="currentBps" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
-              disabled />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Овнер</span>
-            <input id="currentOwner" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
-              disabled />
-          </label>
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+            <div class="font-semibold mb-2">Статус / Логи</div>
+            <pre id="status" class="text-sm"></pre>
+          </div>
+        </section>
+      </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Новый bps</span>
-            <input id="newBps" type="number" min="0" max="10000"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="например, 35" />
-          </label>
-          <div class="flex items-end gap-3">
-            <button id="sendSetBpsBtn"
-              class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled>Установить bps</button>
+      <div id="tab-musdt" class="space-y-8 hidden">
+        <!-- === USDT ПЛАТЁЖ === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Платёж (USDT)</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500 text-white">Jetton flow</span>
           </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Вывести все средства на адрес</span>
-            <input id="withdrawTo"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-          <div class="flex items-end gap-3">
-            <button id="sendWithdrawAllBtn"
-              class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled>Вывести</button>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес контракта (PaymentProcessorUSDT)</span>
+              <input id="contractAddressMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">USDT master (для вычисления вашего jetton-кошелька)</span>
+              <input id="musdtMaster"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Адрес продавца (seller)</span>
+              <input id="sellerMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Партнёрский адрес (optional)</span>
+              <input id="partnerMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="(опц.) EQC…" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Сумма к оплате (USDT)</span>
+              <input id="amountMusdt" type="number" min="0" step="0.000001"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="10.5" />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Десятичных знаков у USDT</span>
+              <input id="musdtDecimals" type="number" min="0" max="18"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
+                placeholder="например, 9" />
+            </label>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Кто платит комиссию</span>
+              <select id="buyerPaysMusdt"
+                class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50">
+                <option value="true">Покупатель</option>
+                <option value="false">Продавец</option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Jetton-кошелёк контракта (из getConfig)</span>
+              <input id="musdtWalletContract" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                placeholder="Прочитайте конфиг" disabled />
+            </label>
           </div>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">Новый овнер</span>
-            <input id="newOwner"
-              class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50"
-              placeholder="EQC…" />
-          </label>
-          <div class="flex items-end gap-3">
-            <button id="sendSetOwnerBtn"
-              class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled>Сменить овнера</button>
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="previewMusdtBtn"
+              class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed">Предпросмотр
+              платежа</button>
+            <button id="sendMusdtBtn"
+              class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white px-4 py-2 font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled>
+              <span id="sendMusdtBtnText">Оплатить USDT</span>
+              <svg id="sendMusdtBtnSpinner" class="ml-2 h-4 w-4 animate-spin text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-1.647z"></path>
+              </svg>
+            </button>
+            <div id="paymentExplorerMusdt" class="text-sm text-emerald-700 font-medium hidden"></div>
           </div>
-        </div>
 
-        <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
-          <div class="font-semibold mb-2">Статус / Логи</div>
-          <pre id="status" class="text-sm"></pre>
-        </div>
-      </section>
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Предпросмотр</div>
+              <pre id="previewMusdt" class="text-sm"></pre>
+            </div>
+            <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+              <div class="font-semibold mb-2">Nonce</div>
+              <div class="flex items-center gap-3 mb-2">
+                <input id="nonceAddrMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC… (по умолчанию — адрес кошелька)" />
+                <button id="nonceBtnMusdt"
+                  class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                  nonceOf</button>
+              </div>
+              <pre id="nonceOutMusdt" class="text-sm"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- === USDT АДМИНКА === -->
+        <section class="rounded-3xl border border-gray-200 bg-white shadow p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Админка (USDT)</h2>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500 text-white">Owner-only</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-end gap-3 md:col-span-2">
+              <button id="readConfigMusdtBtn"
+                class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Прочитать
+                конфиг</button>
+              <div id="ownerCheckMusdt" class="text-sm px-3 py-1 rounded-lg hidden"></div>
+            </div>
+
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Текущий bps</span>
+              <input id="currentBpsMusdt" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Овнер</span>
+              <input id="currentOwnerMusdt" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium">Jetton-кошелёк контракта</span>
+              <input id="currentMusdtWallet" class="px-3 py-2 rounded-xl border border-gray-300 bg-gray-100 text-gray-800"
+                disabled />
+            </label>
+            <div class="flex flex-col gap-1 md:col-span-2">
+              <span class="text-sm font-medium">Новый jetton-кошелёк</span>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="newJettonWalletMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC…" />
+                <button id="fetchJettonWalletFromMasterBtn"
+                  class="inline-flex items-center justify-center rounded-xl border border-gray-900 text-gray-900 px-4 py-2 font-medium hover:bg-gray-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-black/50">Получить
+                  из master</button>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1 md:col-span-2">
+              <span class="text-sm font-medium">Новый bps</span>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="newBpsMusdt" type="number" min="0" max="10000"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="например, 35" />
+                <button id="sendSetBpsMusdtBtn"
+                  class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled>Установить bps</button>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1 md:col-span-2">
+              <span class="text-sm font-medium">Вывести все средства на адрес</span>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="withdrawToMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC…" />
+                <button id="sendWithdrawAllMusdtBtn"
+                  class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled>Вывести</button>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1 md:col-span-2">
+              <span class="text-sm font-medium">Новый овнер</span>
+              <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                <input id="newOwnerMusdt"
+                  class="px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/50 flex-1"
+                  placeholder="EQC…" />
+                <button id="sendSetOwnerMusdtBtn"
+                  class="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-medium shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled>Сменить овнера</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+            <div class="font-semibold mb-2">Статус / Логи</div>
+            <pre id="statusMusdt" class="text-sm"></pre>
+          </div>
+        </section>
+      </div>
+
     </main>
 
     <footer class="text-xs text-gray-500">
@@ -227,38 +419,108 @@
     </footer>
   </div>
 
-  <script>
-    // ---------- CONFIG ----------
-    const API_URL = '/api/transfer';
-    const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
-    const RPC_MAINNET = 'https://toncenter.com/api/v2/jsonRPC';
+<script>
+  // ---------- CONFIG ----------
+  const API_URL = '/api/transfer';
+  const RPC_TESTNET = 'https://testnet.toncenter.com/api/v2/jsonRPC?api_key=d6435d6f150fa5b1666037ec9998f6e951ca11845b11f25939c49174d6221027';
+  const RPC_MAINNET = 'https://toncenter.com/api/v2/jsonRPC';
 
-    const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
-    const fromNano = (nano) => Number(nano) / 1e9;
-    const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
-    const manifestUrlOverride = window.__TONCONNECT_MANIFEST_URL;
-    //manifestUrl: "https://knikolaieva-wq.github.io/tonconnect-manifest/tonconnect-manifest.json"
+  const toNano = (ton) => BigInt(Math.round(Number(ton || 0) * 1e9));
+  const fromNano = (nano) => Number(nano) / 1e9;
+  const manifestUrlResolved = new URL('/tonconnect-manifest.json', window.location.origin).toString();
+  const manifestUrlOverride = window.__TONCONNECT_MANIFEST_URL;
+  const manifestUrlFinal = manifestUrlOverride || manifestUrlResolved;
 
-    const manifestUrlFinal = manifestUrlOverride || manifestUrlResolved;
+  const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+    manifestUrl: manifestUrlFinal
+  });
 
-    // Убираем buttonRootId, чтобы не было конфликта
-    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-      manifestUrl: manifestUrlFinal
+  // op-коды (уже под твой контракт)
+  const OPS = {
+    transfer: 0x42c20f7a,          // Transfer
+    transfer_jetton: 0x0f8a7ea5,   // Jetton internal_transfer
+    setBps: 0xeeab28d0,            // SetPlatformCommissionBps
+    withdrawAll: 0xe225cbda,       // WithdrawAll
+    setOwner: 0xc2b41d43,          // SetOwner
+    setJettonWallet: 0xccd3ca15    // SetJettonWallet
+  };
+
+  // ---------- CONSTANTS / HELPERS ----------
+  const MUSDT_MSG_VALUE = toNano('0.05');
+  const MUSDT_PING_VALUE = toNano('0.005');
+  const MUSDT_GAS_HEADROOM = toNano('0.1'); // запас для jetton-кошелька отправителя
+  const DEFAULT_MUSDT_DECIMALS = 9;
+
+  const tabSections = {
+    ton: document.getElementById('tab-ton'),
+    musdt: document.getElementById('tab-musdt')
+  };
+  const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+  let currentTab = 'ton';
+
+  function switchTab(tab) {
+    if (!tabSections[tab]) return;
+    currentTab = tab;
+    Object.entries(tabSections).forEach(([key, el]) => {
+      if (el) el.classList.toggle('hidden', key !== tab);
     });
+    tabButtons.forEach(btn => {
+      const active = btn.dataset.tab === tab;
+      btn.classList.toggle('bg-black', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('text-gray-800', !active);
+    });
+    saveFormData();
+  }
 
-    // ЗАХАРДКОЖЕНЫ все op-коды из TypeScript файла PaymentProcessor_PaymentProcessor.ts
-    const OPS = {
-      transfer: 1120014202,      // 0x42c20f7a - Transfer
-      setBps: 4004194512,         // 0xeeccd350 - SetPlatformCommissionBps
-      withdrawAll: 3794127834,    // 0xe226cbda - WithdrawAll
-      setOwner: 3266583875        // 0xc2b41d43 - SetOwner
-    };
+  tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
-    // ---------- LOCALSTORAGE HELPERS ----------
-    const STORAGE_KEY = 'ton_payment_form_data';
+  const STORAGE_KEY = 'ton_payment_form_data';
+  const statusTonEl = document.getElementById('status');
+  const statusMusdtEl = document.getElementById('statusMusdt');
 
-    function saveFormData() {
-      const data = {
+  function logStatusTo(el, msg) {
+    if (!el) return;
+    el.textContent += (el.textContent ? '\n' : '') + msg;
+    console.log(msg);
+  }
+  const logStatus = (msg) => logStatusTo(statusTonEl, msg);
+  const logStatusMusdt = (msg) => logStatusTo(statusMusdtEl, msg);
+
+  function formatUnits(value, decimals) {
+    const negative = value < 0n;
+    const abs = negative ? -value : value;
+    const factor = 10n ** BigInt(decimals);
+    const intPart = abs / factor;
+    const fracPart = abs % factor;
+    if (decimals === 0) return `${negative ? '-' : ''}${abs.toString()}`;
+    const fracStr = fracPart.toString().padStart(decimals, '0').replace(/0+$/, '');
+    return `${negative ? '-' : ''}${intPart.toString()}${fracStr ? '.' + fracStr : ''}`;
+  }
+
+  function parseDecimalsSafe(value) {
+    const d = Number(value ?? DEFAULT_MUSDT_DECIMALS);
+    if (!Number.isInteger(d) || d < 0 || d > 18) throw new Error('Decimals должны быть 0..18');
+    return d;
+  }
+
+  function toJettonUnits(amountStr, decimals) {
+    const raw = (amountStr || '').toString().trim();
+    if (!raw) return 0n;
+    const normalized = raw.replace(',', '.');
+    const parts = normalized.split('.');
+    if (parts.length > 2) throw new Error('Некорректная сумма');
+    const [intPartRaw, fracRaw = ''] = parts;
+    if (!/^\d*$/.test(intPartRaw) || !/^\d*$/.test(fracRaw)) throw new Error('Только числа');
+    const intPart = BigInt(intPartRaw || '0');
+    const fracPadded = (fracRaw + '0'.repeat(decimals)).slice(0, decimals);
+    const frac = BigInt(fracPadded || '0');
+    return intPart * 10n ** BigInt(decimals) + frac;
+  }
+
+  function saveFormData() {
+    const data = {
+      ton: {
         contractAddress: document.getElementById('contractAddress').value,
         seller: document.getElementById('seller').value,
         partner: document.getElementById('partner').value,
@@ -267,668 +529,1068 @@
         newBps: document.getElementById('newBps').value,
         withdrawTo: document.getElementById('withdrawTo').value,
         newOwner: document.getElementById('newOwner').value,
-        tonNetwork: document.getElementById('tonNetwork').value
+      },
+      musdt: {
+        contractAddress: document.getElementById('contractAddressMusdt').value,
+        musdtMaster: document.getElementById('musdtMaster').value,
+        seller: document.getElementById('sellerMusdt').value,
+        partner: document.getElementById('partnerMusdt').value,
+        amount: document.getElementById('amountMusdt').value,
+        decimals: document.getElementById('musdtDecimals').value,
+        buyerPays: document.getElementById('buyerPaysMusdt').value,
+        newJettonWallet: document.getElementById('newJettonWalletMusdt').value,
+        newBps: document.getElementById('newBpsMusdt').value,
+        withdrawTo: document.getElementById('withdrawToMusdt').value,
+        newOwner: document.getElementById('newOwnerMusdt').value,
+      },
+      tonNetwork: document.getElementById('tonNetwork').value,
+      activeTab: currentTab,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function loadFormData() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+
+      const data = JSON.parse(saved);
+      const ton = data.ton || data;
+      if (ton.contractAddress) document.getElementById('contractAddress').value = ton.contractAddress;
+      if (ton.seller) document.getElementById('seller').value = ton.seller;
+      if (ton.partner) document.getElementById('partner').value = ton.partner;
+      if (ton.amountTon) document.getElementById('amountTon').value = ton.amountTon;
+      if (ton.buyerPays) document.getElementById('buyerPays').value = ton.buyerPays;
+      if (ton.newBps) document.getElementById('newBps').value = ton.newBps;
+      if (ton.withdrawTo) document.getElementById('withdrawTo').value = ton.withdrawTo;
+      if (ton.newOwner) document.getElementById('newOwner').value = ton.newOwner;
+
+      const musdt = data.musdt || {};
+      if (musdt.contractAddress) document.getElementById('contractAddressMusdt').value = musdt.contractAddress;
+      if (musdt.musdtMaster) document.getElementById('musdtMaster').value = musdt.musdtMaster;
+      if (musdt.seller) document.getElementById('sellerMusdt').value = musdt.seller;
+      if (musdt.partner) document.getElementById('partnerMusdt').value = musdt.partner;
+      if (musdt.amount) document.getElementById('amountMusdt').value = musdt.amount;
+      if (musdt.decimals) document.getElementById('musdtDecimals').value = musdt.decimals;
+      if (musdt.buyerPays) document.getElementById('buyerPaysMusdt').value = musdt.buyerPays;
+      if (musdt.newJettonWallet) document.getElementById('newJettonWalletMusdt').value = musdt.newJettonWallet;
+      if (musdt.newBps) document.getElementById('newBpsMusdt').value = musdt.newBps;
+      if (musdt.withdrawTo) document.getElementById('withdrawToMusdt').value = musdt.withdrawTo;
+      if (musdt.newOwner) document.getElementById('newOwnerMusdt').value = musdt.newOwner;
+
+      if (data.tonNetwork) {
+        document.getElementById('tonNetwork').value = data.tonNetwork;
+        document.getElementById('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+      }
+      if (data.activeTab) switchTab(data.activeTab);
+
+      console.log('Form data loaded from localStorage');
+    } catch (e) {
+      console.error('Failed to load form data:', e);
+    }
+  }
+
+  function attachAutoSave() {
+    const inputs = [
+      'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays',
+      'newBps', 'withdrawTo', 'newOwner', 'tonNetwork',
+      'contractAddressMusdt', 'musdtMaster', 'sellerMusdt', 'partnerMusdt', 'amountMusdt',
+      'musdtDecimals', 'buyerPaysMusdt', 'newJettonWalletMusdt', 'newBpsMusdt', 'withdrawToMusdt', 'newOwnerMusdt'
+    ];
+
+    inputs.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', saveFormData);
+        el.addEventListener('change', saveFormData);
+      }
+    });
+  }
+
+  function waitForLibs() {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (window.tonLibsReady && window.TonCore && window.TonRpc) {
+          resolve();
+        } else {
+          setTimeout(check, 100);
+        }
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      check();
+    });
+  }
+
+  loadFormData();
+
+  waitForLibs().then(() => {
+    const { beginCell, Address, Cell, TupleBuilder } = window.TonCore;
+    const { TonClient, TonAddress, getHttpEndpoint } = window.TonRpc;
+
+    logStatus('Библиотеки загружены');
+
+    attachAutoSave();
+
+    // RPC client
+    async function rpcClientForCurrentNet() {
+      const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+
+      if (isTestnet) return new TonClient({ endpoint: RPC_TESTNET });
+
+      const endpoint = await getHttpEndpoint({ network: 'mainnet' });
+      return new TonClient({ endpoint });
+    }
+    const isTestnet = () => document.getElementById('tonNetwork').value === 'testnet';
+
+    async function estimateFeesFull({ address, bodyB64, outgoingCount, hasOptionalWallet = false }) {
+      const client = await rpcClientForCurrentNet();
+
+      const bodyCell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
+
+      const fee = await client.estimateExternalMessageFee(
+        TonAddress.parse(address),
+        { body: bodyCell, ignoreSignature: true }
+      );
+
+      const toBI = v => (v ? BigInt(v) : 0n);
+      const sum = o => toBI(o.in_fwd_fee) + toBI(o.fwd_fee) + toBI(o.gas_fee) + toBI(o.storage_fee);
+
+      const externalFee = fee.source_fees ? sum(fee.source_fees) : 0n;
+
+      const perInternal = isTestnet() ? toNano('0.0017') : toNano('0.0019');
+      const internalFloor = perInternal * BigInt(outgoingCount);
+
+      const actionFloor = hasOptionalWallet ? toNano('0.025') : toNano('0.005');
+
+      return externalFee + internalFloor + actionFloor;
     }
 
-    function loadFormData() {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return;
+    // ---------- PAYLOAD BUILDERS ----------
+    async function buildTransferPayload(req, deadline) {
+      const b0 = beginCell();
+      b0.storeUint(OPS.transfer, 32);
+      b0.storeAddress(Address.parse(req.buyer));
+      b0.storeAddress(Address.parse(req.seller));
+      b0.storeInt(BigInt(req.amount), 257);
+      b0.storeBit(!!req.buyerPaysCommission);
 
-        const data = JSON.parse(saved);
+      const bOpt = beginCell();
+      bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
+      b0.storeRef(bOpt.endCell());
 
-        if (data.contractAddress) document.getElementById('contractAddress').value = data.contractAddress;
-        if (data.seller) document.getElementById('seller').value = data.seller;
-        if (data.partner) document.getElementById('partner').value = data.partner;
-        if (data.amountTon) document.getElementById('amountTon').value = data.amountTon;
-        if (data.buyerPays) document.getElementById('buyerPays').value = data.buyerPays;
-        if (data.newBps) document.getElementById('newBps').value = data.newBps;
-        if (data.withdrawTo) document.getElementById('withdrawTo').value = data.withdrawTo;
-        if (data.newOwner) document.getElementById('newOwner').value = data.newOwner;
-        if (data.tonNetwork) {
-          document.getElementById('tonNetwork').value = data.tonNetwork;
-          document.getElementById('netInfo').textContent = `Сеть: ${data.tonNetwork === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+      const bDl = beginCell();
+      bDl.storeInt(BigInt(deadline), 257);
+      b0.storeRef(bDl.endCell());
+
+      return b0.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildSetBpsPayload(newBps) {
+      const b = beginCell();
+      b.storeUint(OPS.setBps, 32);
+      b.storeInt(BigInt(newBps), 257);
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildWithdrawAllPayload(toAddr) {
+      const b = beginCell();
+      b.storeUint(OPS.withdrawAll, 32);
+      b.storeAddress(Address.parse(toAddr));
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildSetOwnerPayload(newOwner) {
+      const b = beginCell();
+      b.storeUint(OPS.setOwner, 32);
+      b.storeAddress(Address.parse(newOwner));
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    async function buildSetJettonWalletPayload(newWallet) {
+      const b = beginCell();
+      b.storeUint(OPS.setJettonWallet, 32);
+      b.storeAddress(Address.parse(newWallet));
+      return b.endCell().toBoc({ idx: false }).toString('base64');
+    }
+
+    // ---------- Wallet wiring ----------
+    const walletInfo = document.getElementById('wallet-info');
+    let currentWallet = null;
+
+    function updateWalletUI(wallet) {
+      currentWallet = wallet;
+
+      const enable = !!(wallet && wallet.account && wallet.account.address);
+
+      if (enable) {
+        const addr = wallet.account.address;
+        let shortAddr;
+        if (addr.includes(':')) {
+          const parts = addr.split(':');
+          const hash = parts[1];
+          shortAddr = `${parts[0]}:${hash.slice(0, 4)}...${hash.slice(-4)}`;
+        } else {
+          shortAddr = addr.slice(0, 6) + '...' + addr.slice(-4);
         }
 
-        console.log('Form data loaded from localStorage');
-      } catch (e) {
-        console.error('Failed to load form data:', e);
+        walletInfo.textContent = `Подключено: ${shortAddr}`;
+        walletInfo.classList.add('text-green-600');
+        walletInfo.classList.remove('text-gray-700');
+      } else {
+        walletInfo.textContent = 'Кошелёк не подключен';
+        walletInfo.classList.remove('text-green-600');
+        walletInfo.classList.add('text-gray-700');
       }
-    }
 
-    function attachAutoSave() {
-      const inputs = [
-        'contractAddress', 'seller', 'partner', 'amountTon', 'buyerPays',
-        'newBps', 'withdrawTo', 'newOwner', 'tonNetwork'
+      const buttons = [
+        'sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn',
+        'sendMusdtBtn', 'sendSetBpsMusdtBtn', 'sendWithdrawAllMusdtBtn', 'sendSetOwnerMusdtBtn'
       ];
-
-      inputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.addEventListener('input', saveFormData);
-          el.addEventListener('change', saveFormData);
-        }
+      buttons.forEach((btnId) => {
+        const btn = document.getElementById(btnId);
+        if (btn) btn.disabled = !enable;
       });
-    }
 
-    function logStatus(msg) {
-      const el = document.getElementById('status');
-      if (!el) return;
-      el.textContent += (el.textContent ? '\n' : '') + msg;
-      console.log(msg);
-    }
-
-    // Wait for libs to load
-    function waitForLibs() {
-      return new Promise((resolve) => {
-        const check = () => {
-          if (window.tonLibsReady && window.TonCore && window.TonRpc) {
-            resolve();
-          } else {
-            setTimeout(check, 100);
-          }
-        };
-        check();
-      });
-    }
-
-    // Load saved form data on page load
-    loadFormData();
-
-    // Initialize app after libs loaded
-    waitForLibs().then(() => {
-      const { beginCell, Address, Cell } = window.TonCore;
-      const { TonClient, TonAddress, getHttpEndpoint } = window.TonRpc;
-
-      logStatus('Библиотеки загружены');
-
-      // Attach auto-save to all inputs
-      attachAutoSave();
-
-
-      // RPC client
-      async function rpcClientForCurrentNet() {
-        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-
-        if (isTestnet) return new TonClient({ endpoint: RPC_TESTNET });
-
-        const endpoint = await getHttpEndpoint({ network: 'mainnet' });
-        return new TonClient({ endpoint });
-      }
-      const isTestnet = () => document.getElementById('tonNetwork').value === 'testnet';
-
-      // Полная оценка = внешняя комиссия (SDK) + гарантированный порог на внутренние исходящие
-      async function estimateFeesFull({ address, bodyB64, outgoingCount, hasOptionalWallet = false }) {
-        const client = await rpcClientForCurrentNet();
-
-        // В браузере нужен Buffer-полифил, см. предыдущие шаги
-        const { Cell } = window.TonCore;
-        const { TonAddress } = window.TonRpc;
-        const bodyCell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0];
-
-        const fee = await client.estimateExternalMessageFee(
-          TonAddress.parse(address),
-          { body: bodyCell, ignoreSignature: true }
-        );
-
-        const toBI = v => (v ? BigInt(v) : 0n);
-        const sum = o => toBI(o.in_fwd_fee) + toBI(o.fwd_fee) + toBI(o.gas_fee) + toBI(o.storage_fee);
-
-        // это ~0.00095 TON на testnet — внешнее сообщение
-        const externalFee = fee.source_fees ? sum(fee.source_fees) : 0n;
-
-        // Фикс-порог на forward-фии внутренних исходящих (наблюдательно):
-        // ~0.0017 TON за одно исходящее на testnet и ~0.0019 TON на mainnet.
-        const perInternal = isTestnet() ? toNano('0.0017') : toNano('0.0019');
-        const internalFloor = perInternal * BigInt(outgoingCount);
-
-        // Небольшой запас на action/роутинг:
-        // если используется опциональный кошелёк — берём больший запас
-        const actionFloor = hasOptionalWallet ? toNano('0.025') : toNano('0.005');
-
-        return externalFee + internalFloor + actionFloor;
-      }
-
-      // ---------- PAYLOAD BUILDERS (используют OPS) ----------
-      async function buildTransferPayload(req, deadline) {
-        const b0 = beginCell();
-        b0.storeUint(OPS.transfer, 32);
-        b0.storeAddress(Address.parse(req.buyer));
-        b0.storeAddress(Address.parse(req.seller));
-        b0.storeInt(BigInt(req.amount), 257);
-        b0.storeBit(!!req.buyerPaysCommission);
-
-        const bOpt = beginCell();
-        bOpt.storeAddress(req.optionalCommissionWallet ? Address.parse(req.optionalCommissionWallet) : null);
-        b0.storeRef(bOpt.endCell());
-
-        const bDl = beginCell();
-        bDl.storeInt(BigInt(deadline), 257);
-        b0.storeRef(bDl.endCell());
-
-        return b0.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      async function buildSetBpsPayload(newBps) {
-        const b = beginCell();
-        b.storeUint(OPS.setBps, 32);
-        b.storeInt(BigInt(newBps), 257);
-        return b.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      async function buildWithdrawAllPayload(toAddr) {
-        const b = beginCell();
-        b.storeUint(OPS.withdrawAll, 32);
-        b.storeAddress(Address.parse(toAddr));
-        return b.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      async function buildSetOwnerPayload(newOwner) {
-        const b = beginCell();
-        b.storeUint(OPS.setOwner, 32);
-        b.storeAddress(Address.parse(newOwner));
-        return b.endCell().toBoc({ idx: false }).toString('base64');
-      }
-
-      // ---------- Wallet wiring ----------
-      const walletInfo = document.getElementById('wallet-info');
-      let currentWallet = null;
-
-      // Функция для обновления UI состояния кошелька
-      function updateWalletUI(wallet) {
-        console.log('Updating wallet UI:', wallet);
-        console.log('Wallet structure:', JSON.stringify(wallet, null, 2));
-
-        currentWallet = wallet;
-
-        const enable = !!(wallet && wallet.account && wallet.account.address);
-
-        console.log('Enable state:', enable);
-        console.log('Wallet account:', wallet?.account);
-        console.log('Wallet address:', wallet?.account?.address);
-
-        if (enable) {
+      const nonceAddr = document.getElementById('nonceAddr');
+      const nonceAddrMusdt = document.getElementById('nonceAddrMusdt');
+      if (enable) {
+        try {
           const addr = wallet.account.address;
-          // Проверяем формат адреса и делаем корректное сокращение
-          let shortAddr;
-          if (addr.includes(':')) {
-            // Формат 0:4b1870944ba9c99341cd6b66537328aa222a32875c4ed92060f7a324e43013e0
-            const parts = addr.split(':');
-            const hash = parts[1];
-            shortAddr = `${parts[0]}:${hash.slice(0, 4)}...${hash.slice(-4)}`;
-          } else {
-            // Формат EQC...
-            shortAddr = addr.slice(0, 6) + '...' + addr.slice(-4);
-          }
-
-          walletInfo.textContent = `Подключено: ${shortAddr}`;
-          walletInfo.classList.add('text-green-600');
-          walletInfo.classList.remove('text-gray-700');
-        } else {
-          walletInfo.textContent = 'Кошелёк не подключен';
-          walletInfo.classList.remove('text-green-600');
-          walletInfo.classList.add('text-gray-700');
-        }
-
-        // Управление кнопками
-        const buttons = ['sendBtn', 'sendSetBpsBtn', 'sendWithdrawAllBtn', 'sendSetOwnerBtn'];
-        buttons.forEach((btnId) => {
-          const btn = document.getElementById(btnId);
-          if (btn) {
-            btn.disabled = !enable;
-            console.log(`Button ${btnId} disabled: ${!enable}`);
-          } else {
-            console.warn(`Button ${btnId} not found`);
-          }
-        });
-
-        // Автозаполнение nonce address - используем friendly формат
-        const nonceAddr = document.getElementById('nonceAddr');
-        if (enable && nonceAddr) {
-          // Преобразуем hex формат в friendly, если нужно
-          try {
-            const addr = wallet.account.address;
-            let friendlyAddr;
-
-            if (addr.includes(':')) {
-              // Преобразуем 0:hex в EQ формат
-              friendlyAddr = Address.parse(addr).toString();
-            } else {
-              friendlyAddr = addr;
-            }
-
-            // Заполняем только если пусто
-            if (!nonceAddr.value) {
-              nonceAddr.value = friendlyAddr;
-            }
-          } catch (e) {
-            console.error('Failed to parse wallet address:', e);
-          }
+          const friendlyAddr = addr.includes(':') ? Address.parse(addr).toString() : addr;
+          if (nonceAddr && !nonceAddr.value) nonceAddr.value = friendlyAddr;
+          if (nonceAddrMusdt && !nonceAddrMusdt.value) nonceAddrMusdt.value = friendlyAddr;
+        } catch (e) {
+          console.error('Failed to parse wallet address:', e);
         }
       }
+    }
 
-      // Обработка изменений статуса подключения
-      tonConnectUI.onStatusChange((wallet) => {
-        console.log('TonConnect status changed:', wallet);
+    tonConnectUI.onStatusChange((wallet) => {
+      updateWalletUI(wallet);
+    });
+
+    setTimeout(() => {
+      const wallet = tonConnectUI.wallet;
+      if (wallet) {
         updateWalletUI(wallet);
-      });
-
-      // Проверяем текущее состояние кошелька при загрузке и обновляем UI
-      setTimeout(() => {
-        const wallet = tonConnectUI.wallet;
-        console.log('Checking wallet on init:', wallet);
-        if (wallet) {
-          updateWalletUI(wallet);
-        } else {
-          console.log('No wallet connected on init');
-        }
-      }, 100);
-
-      document.getElementById('connectBtn').addEventListener('click', async () => {
-        try {
-          console.log('Opening TonConnect modal...');
-          await tonConnectUI.openModal();
-        } catch (e) {
-          console.error('Connect error:', e);
-          alert(e?.message || 'Ошибка подключения');
-        }
-      });
-
-      document.getElementById('connectDirectBtn').addEventListener('click', () => {
-        const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
-        const manifestUrl = encodeURIComponent(manifestUrlFinal);
-        const testnetParam = isTestnet ? '&testnet=true' : '';
-        console.log('Opening Tonkeeper directly with testnet:', isTestnet);
-        window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
-      });
-
-      document.getElementById('tonNetwork').addEventListener('change', (e) => {
-        document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
-        saveFormData(); // Save network selection
-      });
-
-      // ---------- UI elems ----------
-      const contractAddressEl = document.getElementById('contractAddress');
-      const sellerEl = document.getElementById('seller');
-      const partnerEl = document.getElementById('partner');
-      const amountTonEl = document.getElementById('amountTon');
-      const buyerPaysEl = document.getElementById('buyerPays');
-
-      const previewEl = document.getElementById('preview');
-      const previewOnchainBtn = document.getElementById('previewOnchainBtn');
-      const sendBtn = document.getElementById('sendBtn');
-      const sendBtnSpinner = document.getElementById('sendBtnSpinner');
-      const sendBtnText = document.getElementById('sendBtnText');
-      const paymentExplorerEl = document.getElementById('paymentExplorer');
-
-      const currentBpsEl = document.getElementById('currentBps');
-      const currentOwnerEl = document.getElementById('currentOwner');
-      const newBpsEl = document.getElementById('newBps');
-      const withdrawToEl = document.getElementById('withdrawTo');
-      const newOwnerEl = document.getElementById('newOwner');
-
-      const nonceAddrEl = document.getElementById('nonceAddr');
-      const nonceBtn = document.getElementById('nonceBtn');
-      const nonceOut = document.getElementById('nonceOut');
-
-      function setSendButtonLoading(isLoading) {
-        if (!sendBtn) return;
-        if (isLoading) {
-          sendBtn.dataset.restoreDisabled = sendBtn.disabled ? '1' : '0';
-          sendBtn.disabled = true;
-          sendBtnSpinner?.classList.remove('hidden');
-          if (sendBtnText) sendBtnText.textContent = 'Отправляем…';
-        } else {
-          const restore = sendBtn.dataset.restoreDisabled === '1';
-          sendBtn.disabled = restore;
-          sendBtnSpinner?.classList.add('hidden');
-          if (sendBtnText) sendBtnText.textContent = 'Оплатить';
-        }
       }
+    }, 100);
 
-      function showPaymentExplorerLink(hash, fallbackAddress) {
-        if (!paymentExplorerEl) return;
-        if (!hash) {
-          paymentExplorerEl.classList.add('hidden');
-          paymentExplorerEl.innerHTML = '';
-          return;
-        }
-        if (!hash) {
-          paymentExplorerEl.classList.add('hidden');
-          paymentExplorerEl.innerHTML = '';
-          return;
-        }
-        const url = `https://testnet.tonviewer.com/transaction/${hash}`;
-                paymentExplorerEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
-        paymentExplorerEl.classList.remove('hidden');
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+      try {
+        await tonConnectUI.openModal();
+      } catch (e) {
+        console.error('Connect error:', e);
+        alert(e?.message || 'Ошибка подключения');
       }
+    });
 
-      async function fetchLastTxHash(address) {
-        try {
-          const client = await rpcClientForCurrentNet();
-          const txs = await client.getTransactions(TonAddress.parse(address), { limit: 1 });
-          if (txs.length > 0) {
-            return txs[0].hash().toString('hex');
-          }
-        } catch (e) {
-          console.error('fetchLastTxHash error:', e);
-        }
-        return null;
+    document.getElementById('connectDirectBtn').addEventListener('click', () => {
+      const isTestnet = document.getElementById('tonNetwork').value === 'testnet';
+      const manifestUrl = encodeURIComponent(manifestUrlFinal);
+      const testnetParam = isTestnet ? '&testnet=true' : '';
+      window.open(`https://app.tonkeeper.com/ton-connect?manifest_url=${manifestUrl}${testnetParam}`, '_blank');
+    });
+
+    document.getElementById('tonNetwork').addEventListener('change', (e) => {
+      document.getElementById('netInfo').textContent = `Сеть: ${e.target.value === 'testnet' ? 'TON Testnet' : 'TON Mainnet'}`;
+      saveFormData();
+    });
+
+    // ---------- UI elems ----------
+    const contractAddressEl = document.getElementById('contractAddress');
+    const sellerEl = document.getElementById('seller');
+    const partnerEl = document.getElementById('partner');
+    const amountTonEl = document.getElementById('amountTon');
+    const buyerPaysEl = document.getElementById('buyerPays');
+
+    const previewEl = document.getElementById('preview');
+    const previewOnchainBtn = document.getElementById('previewOnchainBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const sendBtnSpinner = document.getElementById('sendBtnSpinner');
+    const sendBtnText = document.getElementById('sendBtnText');
+    const paymentExplorerEl = document.getElementById('paymentExplorer');
+
+    const currentBpsEl = document.getElementById('currentBps');
+    const currentOwnerEl = document.getElementById('currentOwner');
+    const newBpsEl = document.getElementById('newBps');
+    const withdrawToEl = document.getElementById('withdrawTo');
+    const newOwnerEl = document.getElementById('newOwner');
+
+    const nonceAddrEl = document.getElementById('nonceAddr');
+    const nonceBtn = document.getElementById('nonceBtn');
+    const nonceOut = document.getElementById('nonceOut');
+
+    const contractAddressMusdtEl = document.getElementById('contractAddressMusdt');
+    const musdtMasterEl = document.getElementById('musdtMaster');
+    const sellerMusdtEl = document.getElementById('sellerMusdt');
+    const partnerMusdtEl = document.getElementById('partnerMusdt');
+    const amountMusdtEl = document.getElementById('amountMusdt');
+    const musdtDecimalsEl = document.getElementById('musdtDecimals');
+    const buyerPaysMusdtEl = document.getElementById('buyerPaysMusdt');
+    const musdtWalletContractEl = document.getElementById('musdtWalletContract');
+
+    const previewMusdtEl = document.getElementById('previewMusdt');
+    const previewMusdtBtn = document.getElementById('previewMusdtBtn');
+    const sendMusdtBtn = document.getElementById('sendMusdtBtn');
+    const sendMusdtBtnSpinner = document.getElementById('sendMusdtBtnSpinner');
+    const sendMusdtBtnText = document.getElementById('sendMusdtBtnText');
+    const paymentExplorerMusdtEl = document.getElementById('paymentExplorerMusdt');
+
+    const currentBpsMusdtEl = document.getElementById('currentBpsMusdt');
+    const currentOwnerMusdtEl = document.getElementById('currentOwnerMusdt');
+    const currentMusdtWalletEl = document.getElementById('currentMusdtWallet');
+    const newJettonWalletMusdtEl = document.getElementById('newJettonWalletMusdt');
+    const newBpsMusdtEl = document.getElementById('newBpsMusdt');
+    const withdrawToMusdtEl = document.getElementById('withdrawToMusdt');
+    const newOwnerMusdtEl = document.getElementById('newOwnerMusdt');
+
+    const nonceAddrMusdtEl = document.getElementById('nonceAddrMusdt');
+    const nonceBtnMusdt = document.getElementById('nonceBtnMusdt');
+    const nonceOutMusdt = document.getElementById('nonceOutMusdt');
+    const fetchJettonWalletFromMasterBtn = document.getElementById('fetchJettonWalletFromMasterBtn');
+
+    function setSendButtonLoading(isLoading) {
+      if (!sendBtn) return;
+      if (isLoading) {
+        sendBtn.dataset.restoreDisabled = sendBtn.disabled ? '1' : '0';
+        sendBtn.disabled = true;
+        sendBtnSpinner?.classList.remove('hidden');
+        if (sendBtnText) sendBtnText.textContent = 'Отправляем…';
+      } else {
+        const restore = sendBtn.dataset.restoreDisabled === '1';
+        sendBtn.disabled = restore;
+        sendBtnSpinner?.classList.add('hidden');
+        if (sendBtnText) sendBtnText.textContent = 'Оплатить';
       }
+    }
 
-      // ---------- PREVIEW (on-chain only) ----------
-      previewOnchainBtn.addEventListener('click', async () => {
-        try {
-          const addr = (contractAddressEl.value || '').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
+    function setSendMusdtButtonLoading(isLoading) {
+      if (!sendMusdtBtn) return;
+      if (isLoading) {
+        sendMusdtBtn.dataset.restoreDisabled = sendMusdtBtn.disabled ? '1' : '0';
+        sendMusdtBtn.disabled = true;
+        sendMusdtBtnSpinner?.classList.remove('hidden');
+        if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Отправляем…';
+      } else {
+        const restore = sendMusdtBtn.dataset.restoreDisabled === '1';
+        sendMusdtBtn.disabled = restore;
+        sendMusdtBtnSpinner?.classList.add('hidden');
+        if (sendMusdtBtnText) sendMusdtBtnText.textContent = 'Оплатить USDT';
+      }
+    }
 
-          const client = await rpcClientForCurrentNet();
-          const amount = toNano(amountTonEl.value || '0');
-          const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
+    function showPaymentExplorerLink(hash, fallbackAddress, targetEl = paymentExplorerEl) {
+      if (!targetEl) return;
+      if (!hash) {
+        targetEl.classList.add('hidden');
+        targetEl.innerHTML = '';
+        return;
+      }
+      const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+      const url = `${baseExplorer}/transaction/${hash}`;
+      targetEl.innerHTML = `<a href="${url}" target="_blank" class="underline">Посмотреть транзакцию</a>`;
+      targetEl.classList.remove('hidden');
+    }
 
-          const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
-            { type: 'int', value: amount },
-            { type: 'int', value: buyerPays }
-          ]);
-
-          // ИСПРАВЛЕНО: правильный порядок чтения стека
-          // previewPayment возвращает Preview{ commission, totalPay }
-          const commission = BigInt(res.stack.readNumber());
-          const totalPay = BigInt(res.stack.readNumber());
-
-          console.log('Preview:', { amount, commission, totalPay });
-
-          previewEl.textContent =
-            `==== PAYMENT PREVIEW ====
-Сумма:           ${fromNano(amount)} TON
-Комиссия:        ${fromNano(commission)} TON
-Итого к оплате:  ${fromNano(totalPay)} TON
-========================`;
-        } catch (e) {
-          previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
-          console.error(e);
+    async function fetchLastTxHash(address) {
+      try {
+        const client = await rpcClientForCurrentNet();
+        const txs = await client.getTransactions(TonAddress.parse(address), { limit: 1 });
+        if (txs.length > 0) {
+          return txs[0].hash().toString('hex');
         }
-      });
+      } catch (e) {
+        console.error('fetchLastTxHash error:', e);
+      }
+      return null;
+    }
 
-      // ---------- SEND payment ----------
-      sendBtn.addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
-        if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
+    async function computeJettonWallet(masterAddr, ownerAddr) {
+      const client = await rpcClientForCurrentNet();
+      const tb = new TupleBuilder();
+      tb.writeAddress(Address.parse(ownerAddr));
+      const res = await client.runMethod(TonAddress.parse(masterAddr), 'get_wallet_address', tb.build());
+      return res.stack.readAddress().toString({ bounceable: true });
+    }
 
-        const buyerAddrFromWallet = currentWallet.account.address;
-        setSendButtonLoading(true);
-        showPaymentExplorerLink(null, null);
+    function calcForwardTonForMusdt({ hasPartner, commissionPositive }) {
+      const transfersCount = 1 + (commissionPositive ? 1 : 0) + (hasPartner ? 1 : 0);
+      const pingValue = hasPartner ? MUSDT_PING_VALUE : 0n;
+      return MUSDT_MSG_VALUE * BigInt(transfersCount) + pingValue;
+    }
 
-        // Get real commission from contract
-        let totalPay, amount;
-        try {
-          const client = await rpcClientForCurrentNet();
-          amount = toNano(amountTonEl.value || '0');
-          const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
-
-          const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
-            { type: 'int', value: amount },
-            { type: 'int', value: buyerPays }
-          ]);
-
-          const commission = BigInt(res.stack.readNumber());
-          totalPay = BigInt(res.stack.readNumber()) + commission;
-
-          logStatus(`Amount: ${fromNano(amount)} TON`);
-          logStatus(`Commission: ${fromNano(commission)} TON`);
-        } catch (e) {
-          logStatus('Ошибка получения комиссии: ' + (e?.message || e));
-          setSendButtonLoading(false);
-          return;
-        }
-
-        const reqBody = {
-          buyer: buyerAddrFromWallet,
-          seller: sellerEl.value.trim(),
-          amount: amount.toString(),
-          buyerPaysCommission: buyerPaysEl.value === 'true',
-          optionalCommissionWallet: (partnerEl.value || '').trim() || null
-        };
-
-        let payloadBase64 = '';
-        try {
-          payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
-        } catch (e) {
-          logStatus('payload error: ' + (e?.message || e));
-          setSendButtonLoading(false);
-          return;
-        }
-
-        let networkFees = 0n;
-        try {
-          const hasPartner = !!reqBody.optionalCommissionWallet;
-          const outgoingCount = 1 + 1 + (hasPartner ? 1 : 0); // продавец + платформа (+ партнёр)
-
-          networkFees = await estimateFeesFull({
-            address: to,
-            bodyB64: payloadBase64,
-            outgoingCount,
-            hasOptionalWallet: hasPartner
-          });
-        } catch (e) {
-          logStatus('Ошибка естимации комиссии сети: ' + (e?.message || e));
-          setSendButtonLoading(false);
-          return;
-        }
-        console.log('Estimated network fees:', fromNano(networkFees), 'TON');
-
-        const totalToSend = totalPay + networkFees;
-        logStatus(`Total to send: ${fromNano(totalToSend)} TON`);
-
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [{
-            address: to,
-            amount: totalToSend.toString(),
-            payload: payloadBase64
-          }]
-        };
-
-        try {
-          logStatus('Отправляем платёж…');
-          await tonConnectUI.sendTransaction(tx);
-          logStatus('Платёж отправлен.');
-          logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
-          setTimeout(async () => {
-            const hash = await fetchLastTxHash(currentWallet.account.address);
-            showPaymentExplorerLink(hash, to);
-          }, 4000);
-        } catch (e) {
-          logStatus('Ошибка/отмена платежа: ' + (e?.message || e));
-          showPaymentExplorerLink(null, null);
-        } finally {
-          setSendButtonLoading(false);
-        }
-      });
-
-      // ---------- READ: getConfig ----------
-      async function readConfig() {
+    // ---------- PREVIEW (TON) ----------
+    previewOnchainBtn.addEventListener('click', async () => {
+      try {
         const addr = (contractAddressEl.value || '').trim();
         if (!addr) throw new Error('Укажите адрес контракта');
 
         const client = await rpcClientForCurrentNet();
-        const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+        const amount = toNano(amountTonEl.value || '0');
+        const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
 
-        const owner = res.stack.readAddress().toString({ bounceable: true });
-        const mainWallet = res.stack.readAddress().toString({ bounceable: true });
-        const nft = res.stack.readAddress().toString({ bounceable: true });
-        const bps = res.stack.readNumber();
+        const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
 
-        currentOwnerEl.value = owner;
-        currentBpsEl.value = String(bps);
-        logStatus(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, bps=${bps}`);
+        const commission = BigInt(res.stack.readNumber());
+        const totalPay = BigInt(res.stack.readNumber());
 
-        // Проверяем совпадение owner с подключенным кошельком
-        const ownerCheckEl = document.getElementById('ownerCheck');
-        if (currentWallet?.account?.address) {
-          try {
-            const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
-            const isOwner = walletAddr === owner;
+        previewEl.textContent =
+          `==== PAYMENT PREVIEW ====
+Сумма:           ${fromNano(amount)} TON
+Комиссия:        ${fromNano(commission)} TON
+Итого к оплате:  ${fromNano(totalPay)} TON
+========================`;
+      } catch (e) {
+        previewEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
 
-            ownerCheckEl.classList.remove('hidden');
-            if (isOwner) {
-              ownerCheckEl.textContent = '✓ Вы — владелец';
-              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
-              logStatus('✓ Подключенный кошелек является владельцем контракта');
-            } else {
-              ownerCheckEl.textContent = '✗ Вы не владелец';
-              ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
-              logStatus('✗ Подключенный кошелек НЕ является владельцем контракта');
-            }
-          } catch (e) {
-            console.error('Owner check error:', e);
-            ownerCheckEl.classList.add('hidden');
-          }
-        } else {
-          ownerCheckEl.classList.add('hidden');
-        }
+    // ---------- PREVIEW USDT ----------
+    previewMusdtBtn.addEventListener('click', async () => {
+      try {
+        const addr = (contractAddressMusdtEl.value || '').trim();
+        if (!addr) throw new Error('Укажите адрес контракта');
+
+        const decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
+        const amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
+        const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
+
+        const client = await rpcClientForCurrentNet();
+        const res = await client.runMethod(TonAddress.parse(addr), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
+
+        const commission = BigInt(res.stack.readNumber());
+        const totalPay = BigInt(res.stack.readNumber());
+
+        previewMusdtEl.textContent =
+          `==== PAYMENT PREVIEW ====
+Сумма:           ${formatUnits(amount, decimals)} USDT
+Комиссия:        ${formatUnits(commission, decimals)} USDT
+Итого к оплате:  ${formatUnits(totalPay, decimals)} USDT
+========================`;
+      } catch (e) {
+        previewMusdtEl.textContent = 'Ошибка предпросмотра: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
+
+    // ---------- SEND payment (TON) ----------
+    sendBtn.addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+      if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
+
+      const buyerAddrFromWallet = currentWallet.account.address;
+      setSendButtonLoading(true);
+      showPaymentExplorerLink(null, null);
+
+      let totalPay, amount;
+      try {
+        const client = await rpcClientForCurrentNet();
+        amount = toNano(amountTonEl.value || '0');
+        const buyerPays = buyerPaysEl.value === 'true' ? 1n : 0n;
+
+        const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
+
+        const commission = BigInt(res.stack.readNumber());
+        totalPay = BigInt(res.stack.readNumber()); // уже включает комиссию, если buyerPays = true
+
+        logStatus(`Amount: ${fromNano(amount)} TON`);
+        logStatus(`Commission: ${fromNano(commission)} TON`);
+        logStatus(`Total pay (to contract): ${fromNano(totalPay)} TON`);
+      } catch (e) {
+        logStatus('Ошибка получения комиссии: ' + (e?.message || e));
+        setSendButtonLoading(false);
+        return;
       }
 
-      document.getElementById('readConfigBtn').addEventListener('click', () =>
-        readConfig().catch(e => logStatus('getConfig error: ' + (e?.message || e)))
-      );
+      const reqBody = {
+        buyer: buyerAddrFromWallet,
+        seller: sellerEl.value.trim(),
+        amount: amount.toString(),
+        buyerPaysCommission: buyerPaysEl.value === 'true',
+        optionalCommissionWallet: (partnerEl.value || '').trim() || null
+      };
 
-      // ---------- READ: nonceOf ----------
-      document.getElementById('nonceBtn').addEventListener('click', async () => {
-        nonceOut.textContent = '';
-        try {
-          const addr = (contractAddressEl.value || '').trim();
-          if (!addr) throw new Error('Укажите адрес контракта');
+      let payloadBase64 = '';
+      try {
+        payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
+      } catch (e) {
+        logStatus('payload error: ' + (e?.message || e));
+        setSendButtonLoading(false);
+        return;
+      }
 
-          const who = (nonceAddrEl.value || '').trim();
-          if (!who) throw new Error('Укажите адрес аккаунта');
+      let networkFees = 0n;
+      try {
+        const hasPartner = !!reqBody.optionalCommissionWallet;
+        const outgoingCount = 1 + 1 + (hasPartner ? 1 : 0);
 
-          const client = await rpcClientForCurrentNet();
-          const cell = beginCell();
-          cell.storeAddress(Address.parse(who));
+        networkFees = await estimateFeesFull({
+          address: to,
+          bodyB64: payloadBase64,
+          outgoingCount,
+          hasOptionalWallet: hasPartner
+        });
+      } catch (e) {
+        logStatus('Ошибка естимации комиссии сети: ' + (e?.message || e));
+        setSendButtonLoading(false);
+        return;
+      }
+      console.log('Estimated network fees:', fromNano(networkFees), 'TON');
 
-          const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
-            { type: 'slice', cell: cell.endCell() }
-          ]);
+      const totalToSend = totalPay + networkFees;
+      logStatus(`Total to send: ${fromNano(totalToSend)} TON`);
 
-          const n = res.stack.readNumber();
-          nonceOut.textContent = `nonceOf(${who}) = ${n}`;
-        } catch (e) {
-          nonceOut.textContent = 'nonceOf error: ' + (e?.message || e);
-          console.error(e);
-        }
-      });
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: to,
+          amount: totalToSend.toString(),
+          payload: payloadBase64
+        }]
+      };
 
-      // ---------- ADMIN sends ----------
-      async function sendAdminMessage({ to, payloadBase64, value = '100000000' }) {
-        const tx = {
-          validUntil: Math.floor(Date.now() / 1000) + 300,
-          messages: [{
-            address: to,
-            amount: value,
-            payload: payloadBase64
-          }]
-        };
-        logStatus('Отправляем админ-транзакцию…');
-        const res = await tonConnectUI.sendTransaction(tx);
-        logStatus('Админ-транзакция отправлена.');
-        logStatus(`Tx explorer: https://testnet.tonviewer.com/${to}`);
+      try {
+        logStatus('Отправляем платёж…');
+        await tonConnectUI.sendTransaction(tx);
+        logStatus('Платёж отправлен.');
+        const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+        logStatus(`Tx explorer: ${baseExplorer}/${to}`);
         setTimeout(async () => {
-          const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+          const hash = await fetchLastTxHash(currentWallet.account.address);
           showPaymentExplorerLink(hash, to);
         }, 4000);
-        logStatus('Ожидание подтверждения (10 сек)...');
+      } catch (e) {
+        logStatus('Ошибка/отмена платежа: ' + (e?.message || e));
+        showPaymentExplorerLink(null, null);
+      } finally {
+        setSendButtonLoading(false);
+      }
+    });
 
-        // Автообновление конфига через 10 секунд
-        setTimeout(async () => {
-          try {
-            logStatus('Обновляем конфиг...');
-            await readConfig();
-          } catch (e) {
-            logStatus('Не удалось обновить конфиг: ' + (e?.message || e));
-          }
-        }, 10000);
+    // ---------- SEND USDT payment ----------
+    sendMusdtBtn.addEventListener('click', async () => {
+      let to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+      if (!currentWallet?.account?.address) { alert('Кошелёк не подключён'); return; }
 
-        return res;
+      let master = (musdtMasterEl.value || '').trim();
+
+      let decimals;
+      try {
+        decimals = parseDecimalsSafe(musdtDecimalsEl.value || DEFAULT_MUSDT_DECIMALS);
+      } catch (e) {
+        alert(e.message);
+        return;
       }
 
-      document.getElementById('sendSetBpsBtn').addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
+      let amount;
+      try {
+        amount = toJettonUnits(amountMusdtEl.value || '0', decimals);
+      } catch (e) {
+        alert(e?.message || e);
+        return;
+      }
 
-        const bps = Number(newBpsEl.value || '');
-        if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
-          alert('bps 0..10000');
-          return;
+      if (amount <= 0n) { alert('Сумма должна быть > 0'); return; }
+
+      const buyerAddrFromWallet = currentWallet.account.address;
+      const buyerFriendly = buyerAddrFromWallet.includes(':')
+        ? Address.parse(buyerAddrFromWallet).toString()
+        : buyerAddrFromWallet;
+
+      setSendMusdtButtonLoading(true);
+      showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
+
+      let commission = 0n;
+      let totalPay = 0n;
+      try {
+        const client = await rpcClientForCurrentNet();
+        const buyerPays = buyerPaysMusdtEl.value === 'true' ? 1n : 0n;
+
+        const res = await client.runMethod(TonAddress.parse(to), 'previewPayment', [
+          { type: 'int', value: amount },
+          { type: 'int', value: buyerPays }
+        ]);
+
+        commission = BigInt(res.stack.readNumber());
+        totalPay = BigInt(res.stack.readNumber());
+
+        logStatusMusdt(`Amount: ${formatUnits(amount, decimals)} USDT`);
+        logStatusMusdt(`Commission: ${formatUnits(commission, decimals)} USDT`);
+      } catch (e) {
+        logStatusMusdt('Ошибка получения комиссии: ' + (e?.message || e));
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+
+      const reqBody = {
+        buyer: buyerFriendly,
+        seller: sellerMusdtEl.value.trim(),
+        amount: amount.toString(),
+        buyerPaysCommission: buyerPaysMusdtEl.value === 'true',
+        optionalCommissionWallet: (partnerMusdtEl.value || '').trim() || null
+      };
+
+      let payloadBase64 = '';
+      try {
+        payloadBase64 = await buildTransferPayload(reqBody, Math.floor(Date.now() / 1000) + 3600);
+      } catch (e) {
+        logStatusMusdt('payload error: ' + (e?.message || e));
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+
+      // jetton-кошелёк контракта и master берём из getConfig, если не указаны вручную
+      let musdtWalletAddr = (musdtWalletContractEl.value || '').trim();
+      try {
+        if (!musdtWalletAddr || !master) {
+          const cfg = await readConfigMusdt({ silent: true });
+          if (!musdtWalletAddr) musdtWalletAddr = cfg.musdtWallet;
+          if (!master) {
+            master = cfg.jettonMaster;
+            musdtMasterEl.value = master;
+          }
         }
+      } catch (e) {
+        logStatusMusdt('Не удалось прочитать конфиг USDT: ' + (e?.message || e));
+      }
 
-        try {
-          const payload = await buildSetBpsPayload(bps);
-          await sendAdminMessage({ to, payloadBase64: payload });
-          logStatus(`SetBps отправлен: ${bps}`);
-        } catch (e) {
-          logStatus('SetBps error: ' + (e?.message || e));
-        }
-      });
+      if (!musdtWalletAddr) {
+        alert('Прочитайте конфиг, чтобы узнать jetton-кошелёк контракта');
+        setSendMusdtButtonLoading(false);
+        return;
+      }
+      if (!master) {
+        alert('Не удалось получить USDT master (ни из поля, ни из getConfig)');
+        setSendMusdtButtonLoading(false);
+        return;
+      }
 
-      document.getElementById('sendWithdrawAllBtn').addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
+      let buyerJettonWallet;
+      try {
+        buyerJettonWallet = await computeJettonWallet(master, buyerFriendly);
+      } catch (e) {
+        logStatusMusdt('Ошибка получения вашего USDT-кошелька: ' + (e?.message || e));
+        setSendMusdtButtonLoading(false);
+        return;
+      }
 
-        const wto = (withdrawToEl.value || '').trim();
-        if (!wto) { alert('Укажите адрес получателя'); return; }
+      const hasPartner = !!reqBody.optionalCommissionWallet;
+      const forwardAmount = calcForwardTonForMusdt({ hasPartner, commissionPositive: commission > 0n });
+      const txValue = forwardAmount + MUSDT_GAS_HEADROOM;
+      logStatusMusdt(`Forward TON: ${fromNano(forwardAmount)} (доп. ${fromNano(MUSDT_GAS_HEADROOM)} на газ кошелька)`);
 
-        try {
-          const payload = await buildWithdrawAllPayload(wto);
-          await sendAdminMessage({ to, payloadBase64: payload });
-          logStatus('WithdrawAll отправлен');
-        } catch (e) {
-          logStatus('WithdrawAll error: ' + (e?.message || e));
-        }
-      });
+      const forwardPayloadCell = Cell.fromBoc(Buffer.from(payloadBase64, 'base64'))[0];
+      const jettonBody = beginCell();
+      jettonBody.storeUint(OPS.transfer_jetton, 32);
+      jettonBody.storeUint(0, 64);
+      jettonBody.storeCoins(totalPay);
+      jettonBody.storeAddress(Address.parse(to));
+      jettonBody.storeAddress(Address.parse(buyerFriendly));
+      jettonBody.storeMaybeRef(null);
+      jettonBody.storeCoins(forwardAmount);
+      jettonBody.storeMaybeRef(forwardPayloadCell);
+      const jettonPayloadBase64 = jettonBody.endCell().toBoc({ idx: false }).toString('base64');
 
-      document.getElementById('sendSetOwnerBtn').addEventListener('click', async () => {
-        const to = contractAddressEl.value.trim();
-        if (!to) { alert('Укажите адрес контракта'); return; }
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: buyerJettonWallet,
+          amount: txValue.toString(),
+          payload: jettonPayloadBase64
+        }]
+      };
 
-        const newOwner = (newOwnerEl.value || '').trim();
-        if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
-
-        try {
-          const payload = await buildSetOwnerPayload(newOwner);
-          await sendAdminMessage({ to, payloadBase64: payload });
-          logStatus('SetOwner отправлен');
-        } catch (e) {
-          logStatus('SetOwner error: ' + (e?.message || e));
-        }
-      });
-
-      // ---------- Manifest sanity-check ----------
-      (async () => {
-        const statusEl = document.getElementById('manifest-status');
-        try {
-          const r = await fetch(manifestUrlFinal, { cache: 'no-store' });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const j = await r.json();
-          const origin = new URL(j.url, window.location.href).origin;
-          statusEl.textContent = (origin !== window.location.origin)
-            ? `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`
-            : '';
-        } catch (e) {
-          statusEl.textContent = `Манифест недоступен: ${e.message}`;
-        }
-      })();
-
-      logStatus('Приложение инициализировано');
-
-    }).catch(error => {
-      console.error('Init error:', error);
-      alert('Ошибка загрузки библиотек: ' + error.message);
+      try {
+        logStatusMusdt('Отправляем USDT платёж…');
+        await tonConnectUI.sendTransaction(tx);
+        logStatusMusdt('Платёж отправлен.');
+        setTimeout(async () => {
+          const hash = await fetchLastTxHash(currentWallet.account.address);
+          showPaymentExplorerLink(hash, musdtWalletAddr, paymentExplorerMusdtEl);
+        }, 4000);
+      } catch (e) {
+        logStatusMusdt('Ошибка/отмена платежа: ' + (e?.message || e));
+        showPaymentExplorerLink(null, null, paymentExplorerMusdtEl);
+      } finally {
+        setSendMusdtButtonLoading(false);
+      }
     });
-  </script>
+
+    // ---------- READ: getConfig (TON) ----------
+    async function readConfig() {
+      const addr = (contractAddressEl.value || '').trim();
+      if (!addr) throw new Error('Укажите адрес контракта');
+
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+
+      const owner = res.stack.readAddress().toString({ bounceable: true });
+      const mainWallet = res.stack.readAddress().toString({ bounceable: true });
+      const nft = res.stack.readAddress().toString({ bounceable: true });
+      const bps = res.stack.readNumber();
+
+      currentOwnerEl.value = owner;
+      currentBpsEl.value = String(bps);
+      logStatus(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, bps=${bps}`);
+
+      const ownerCheckEl = document.getElementById('ownerCheck');
+      if (currentWallet?.account?.address) {
+        try {
+          const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
+          const isOwner = walletAddr === owner;
+
+          ownerCheckEl.classList.remove('hidden');
+          if (isOwner) {
+            ownerCheckEl.textContent = '✓ Вы — владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
+            logStatus('✓ Подключенный кошелек является владельцем контракта');
+          } else {
+            ownerCheckEl.textContent = '✗ Вы не владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
+            logStatus('✗ Подключенный кошелек НЕ является владельцем контракта');
+          }
+        } catch (e) {
+          console.error('Owner check error:', e);
+          ownerCheckEl.classList.add('hidden');
+        }
+      } else {
+        ownerCheckEl.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('readConfigBtn').addEventListener('click', () =>
+      readConfig().catch(e => logStatus('getConfig error: ' + (e?.message || e)))
+    );
+
+    // ---------- READ: getConfig (USDT / JettonPaymentProcessor) ----------
+    async function readConfigMusdt({ silent = false } = {}) {
+      const addr = (contractAddressMusdtEl.value || '').trim();
+      if (!addr) throw new Error('Укажите адрес контракта');
+
+      const client = await rpcClientForCurrentNet();
+      const res = await client.runMethod(TonAddress.parse(addr), 'getConfig');
+
+      const owner = res.stack.readAddress().toString({ bounceable: true });
+      const mainWallet = res.stack.readAddress().toString({ bounceable: true });
+      const nft = res.stack.readAddress().toString({ bounceable: true });
+      const bps = res.stack.readNumber();
+      const jettonMaster = res.stack.readAddress().toString({ bounceable: true });
+      const musdtWallet = res.stack.readAddress().toString({ bounceable: true });
+
+      currentOwnerMusdtEl.value = owner;
+      currentBpsMusdtEl.value = String(bps);
+      currentMusdtWalletEl.value = musdtWallet;
+      musdtWalletContractEl.value = musdtWallet;
+
+      // сразу подставим master в поле, чтобы совпадало с контрактом
+      if (!musdtMasterEl.value) musdtMasterEl.value = jettonMaster;
+
+      if (!silent) {
+        logStatusMusdt(`Config: owner=${owner}, main=${mainWallet}, nft=${nft}, jettonMaster=${jettonMaster}, musdtWallet=${musdtWallet}, bps=${bps}`);
+      }
+
+      const ownerCheckEl = document.getElementById('ownerCheckMusdt');
+      if (currentWallet?.account?.address) {
+        try {
+          const walletAddr = Address.parse(currentWallet.account.address).toString({ bounceable: true });
+          const isOwner = walletAddr === owner;
+
+          ownerCheckEl.classList.remove('hidden');
+          if (isOwner) {
+            ownerCheckEl.textContent = '✓ Вы — владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-green-100 text-green-700';
+            logStatusMusdt('✓ Подключенный кошелек является владельцем контракта');
+          } else {
+            ownerCheckEl.textContent = '✗ Вы не владелец';
+            ownerCheckEl.className = 'text-sm px-3 py-1 rounded-lg bg-red-100 text-red-700';
+            logStatusMusdt('✗ Подключенный кошелек НЕ является владельцем контракта');
+          }
+        } catch (e) {
+          console.error('Owner check error:', e);
+          ownerCheckEl.classList.add('hidden');
+        }
+      } else {
+        ownerCheckEl.classList.add('hidden');
+      }
+
+      return { owner, mainWallet, nft, bps, jettonMaster, musdtWallet };
+    }
+
+    document.getElementById('readConfigMusdtBtn').addEventListener('click', () =>
+      readConfigMusdt().catch(e => logStatusMusdt('getConfig error: ' + (e?.message || e)))
+    );
+
+    // ---------- READ: nonceOf ----------
+    document.getElementById('nonceBtn').addEventListener('click', async () => {
+      nonceOut.textContent = '';
+      try {
+        const addr = (contractAddressEl.value || '').trim();
+        if (!addr) throw new Error('Укажите адрес контракта');
+
+        const who = (nonceAddrEl.value || '').trim();
+        if (!who) throw new Error('Укажите адрес аккаунта');
+
+        const client = await rpcClientForCurrentNet();
+        const cell = beginCell();
+        cell.storeAddress(Address.parse(who));
+
+        const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
+          { type: 'slice', cell: cell.endCell() }
+        ]);
+
+        const n = res.stack.readNumber();
+        nonceOut.textContent = `nonceOf(${who}) = ${n}`;
+      } catch (e) {
+        nonceOut.textContent = 'nonceOf error: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
+
+    document.getElementById('nonceBtnMusdt').addEventListener('click', async () => {
+      nonceOutMusdt.textContent = '';
+      try {
+        const addr = (contractAddressMusdtEl.value || '').trim();
+        if (!addr) throw new Error('Укажите адрес контракта');
+
+        const who = (nonceAddrMusdtEl.value || '').trim();
+        if (!who) throw new Error('Укажите адрес аккаунта');
+
+        const client = await rpcClientForCurrentNet();
+        const cell = beginCell();
+        cell.storeAddress(Address.parse(who));
+
+        const res = await client.runMethod(TonAddress.parse(addr), 'nonceOf', [
+          { type: 'slice', cell: cell.endCell() }
+        ]);
+
+        const n = res.stack.readNumber();
+        nonceOutMusdt.textContent = `nonceOf(${who}) = ${n}`;
+      } catch (e) {
+        nonceOutMusdt.textContent = 'nonceOf error: ' + (e?.message || e);
+        console.error(e);
+      }
+    });
+
+    // ---------- ADMIN sends ----------
+    async function sendAdminMessage({ to, payloadBase64, value = '100000000' }) {
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: to,
+          amount: value,
+          payload: payloadBase64
+        }]
+      };
+      logStatus('Отправляем админ-транзакцию…');
+      const res = await tonConnectUI.sendTransaction(tx);
+      logStatus('Админ-транзакция отправлена.');
+      const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+      logStatus(`Tx explorer: ${baseExplorer}/${to}`);
+      setTimeout(async () => {
+        const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+        showPaymentExplorerLink(hash, to);
+      }, 4000);
+      logStatus('Ожидание подтверждения (10 сек)...');
+
+      setTimeout(async () => {
+        try {
+          logStatus('Обновляем конфиг...');
+          await readConfig();
+        } catch (e) {
+          logStatus('Не удалось обновить конфиг: ' + (e?.message || e));
+        }
+      }, 10000);
+
+      return res;
+    }
+
+    async function sendAdminMessageMusdt({ to, payloadBase64, value = '100000000' }) {
+      const tx = {
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: to,
+          amount: value,
+          payload: payloadBase64
+        }]
+      };
+      logStatusMusdt('Отправляем админ-транзакцию…');
+      const res = await tonConnectUI.sendTransaction(tx);
+      logStatusMusdt('Админ-транзакция отправлена.');
+      const baseExplorer = isTestnet() ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
+      logStatusMusdt(`Tx explorer: ${baseExplorer}/${to}`);
+      setTimeout(async () => {
+        const hash = await fetchLastTxHash(currentWallet?.account?.address || to);
+        showPaymentExplorerLink(hash, to, paymentExplorerMusdtEl);
+      }, 4000);
+      logStatusMusdt('Ожидание подтверждения (10 сек)...');
+
+      setTimeout(async () => {
+        try {
+          logStatusMusdt('Обновляем конфиг...');
+          await readConfigMusdt({ silent: true });
+        } catch (e) {
+          logStatusMusdt('Не удалось обновить конфиг: ' + (e?.message || e));
+        }
+      }, 10000);
+
+      return res;
+    }
+
+    document.getElementById('sendSetBpsBtn').addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const bps = Number(newBpsEl.value || '');
+      if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
+        alert('bps 0..10000');
+        return;
+      }
+
+      try {
+        const payload = await buildSetBpsPayload(bps);
+        await sendAdminMessage({ to, payloadBase64: payload });
+        logStatus(`SetBps отправлен: ${bps}`);
+      } catch (e) {
+        logStatus('SetBps error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendWithdrawAllBtn').addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const wto = (withdrawToEl.value || '').trim();
+      if (!wto) { alert('Укажите адрес получателя'); return; }
+
+      try {
+        const payload = await buildWithdrawAllPayload(wto);
+        await sendAdminMessage({ to, payloadBase64: payload });
+        logStatus('WithdrawAll отправлен');
+      } catch (e) {
+        logStatus('WithdrawAll error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendSetOwnerBtn').addEventListener('click', async () => {
+      const to = contractAddressEl.value.trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const newOwner = (newOwnerEl.value || '').trim();
+      if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
+
+      try {
+        const payload = await buildSetOwnerPayload(newOwner);
+        await sendAdminMessage({ to, payloadBase64: payload });
+        logStatus('SetOwner отправлен');
+      } catch (e) {
+        logStatus('SetOwner error: ' + (e?.message || e));
+      }
+    });
+
+    fetchJettonWalletFromMasterBtn?.addEventListener('click', async () => {
+      const master = (musdtMasterEl.value || '').trim();
+      const contractAddr = (contractAddressMusdtEl.value || '').trim();
+      if (!contractAddr) { alert('Укажите адрес контракта'); return; }
+      if (!master) { alert('Укажите USDT master'); return; }
+
+      try {
+        const wallet = await computeJettonWallet(master, contractAddr);
+        newJettonWalletMusdtEl.value = wallet;
+        musdtWalletContractEl.value = wallet;
+        logStatusMusdt(`Jetton wallet (из master): ${wallet}`);
+        saveFormData();
+      } catch (e) {
+        logStatusMusdt('Ошибка получения jetton wallet: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendSetBpsMusdtBtn').addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const bps = Number(newBpsMusdtEl.value || '');
+      if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {
+        alert('bps 0..10000');
+        return;
+      }
+
+      try {
+        const payload = await buildSetBpsPayload(bps);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload });
+        logStatusMusdt(`SetBps отправлен: ${bps}`);
+      } catch (e) {
+        logStatusMusdt('SetBps error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendWithdrawAllMusdtBtn').addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const wto = (withdrawToMusdtEl.value || '').trim();
+      if (!wto) { alert('Укажите адрес получателя'); return; }
+
+      try {
+        const payload = await buildWithdrawAllPayload(wto);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload });
+        logStatusMusdt('WithdrawAll отправлен');
+      } catch (e) {
+        logStatusMusdt('WithdrawAll error: ' + (e?.message || e));
+      }
+    });
+
+    document.getElementById('sendSetOwnerMusdtBtn').addEventListener('click', async () => {
+      const to = (contractAddressMusdtEl.value || '').trim();
+      if (!to) { alert('Укажите адрес контракта'); return; }
+
+      const newOwner = (newOwnerMusdtEl.value || '').trim();
+      if (!newOwner) { alert('Укажите адрес нового овнера'); return; }
+
+      try {
+        const payload = await buildSetOwnerPayload(newOwner);
+        await sendAdminMessageMusdt({ to, payloadBase64: payload });
+        logStatusMusdt('SetOwner отправлен');
+      } catch (e) {
+        logStatusMusdt('SetOwner error: ' + (e?.message || e));
+      }
+    });
+
+    // ---------- Manifest sanity-check ----------
+    (async () => {
+      const statusEl = document.getElementById('manifest-status');
+      try {
+        const r = await fetch(manifestUrlFinal, { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        const origin = new URL(j.url, window.location.href).origin;
+        statusEl.textContent = (origin !== window.location.origin)
+          ? `Манифест url (${origin}) не совпадает с origin страницы (${window.location.origin}).`
+          : '';
+      } catch (e) {
+        statusEl.textContent = `Манифест недоступен: ${e.message}`;
+      }
+    })();
+
+    logStatus('Приложение инициализировано');
+
+  }).catch(error => {
+    console.error('Init error:', error);
+    alert('Ошибка загрузки библиотек: ' + error.message);
+  });
+</script>
+
 </body>
 
 </html>

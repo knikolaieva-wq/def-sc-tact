@@ -179,6 +179,18 @@ contract PartnerNftCollection with Ownable {
     receive(msg: SetTxProcessor) {
         self.requireOwner();
         self.txProcessors.set(msg.processor, msg.allowed);
+
+        foreach (wallet, allowedProc in self.walletWhitelist) {
+            send(SendParameters{
+                to: msg.processor,
+                value: ton("0.02"),
+                mode: 0,
+                body: RegisterPartnerShare{
+                    wallet: wallet,
+                    shareBps: self.platformShareBpsForWallet(wallet)
+                }.toCell()
+            });
+        }
     }
 
     // ===== Business-specific receives =====

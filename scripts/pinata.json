@@ -1,0 +1,8 @@
+{
+    "address": "0:706b5d55ca09b2bb7f755f3692325f36cb925acfe4ec7c95b03c07bbeff7208e",
+    "name": "Mock USDT Sample",
+    "symbol": "MUSDT",
+    "decimals": "9",
+    "image": "https://s3.laisky.com/uploads/2024/09/jetton-logo.png",
+    "description": "TON Jetton Sample https://github.com/Laisky/tact-utils"
+  }

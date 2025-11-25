@@ -4,10 +4,20 @@
   "private": true,
   "scripts": {
     "build:contract": "tact -c tact.config.json",
+    "deploy:transfer-usdt:testnet": "TS_NODE_PROJECT=scripts/tsconfig.json npx ts-node --transpile-only scripts/deploy-usdt.ts --network testnet",
+    "deploy:jetton": "tsx scripts/jetton/deploy.ts --network testnet",
+    "mint:jetton": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=scripts/tsconfig.json npx blueprint run --testnet --tonconnect jetton/mint",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "build": "npx blueprint build",
     "deploy": "npx blueprint run",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "dev": "node scripts/dev-server.mjs"
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs",
+      "verbatimModuleSyntax": false
+    }
   },
   "devDependencies": {
     "@tact-lang/compiler": "^1.6.13",
